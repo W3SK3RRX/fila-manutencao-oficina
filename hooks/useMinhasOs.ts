@@ -10,6 +10,10 @@ import { apiFetch } from "@/lib/api-client";
 export interface OsMecanico {
   id: string;
   status: string;
+  // Adicionado via `include` na rota (ver app/api/mecanico/atual/route.ts):
+  // nome legível do tipo de serviço, para exibição direta sem precisar
+  // resolver `tipoServicoId` contra GET /api/tipos-servico.
+  tipoServico?: { nome: string } | null;
   [chave: string]: unknown;
 }
 

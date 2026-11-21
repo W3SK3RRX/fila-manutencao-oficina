@@ -37,10 +37,12 @@ export async function GET(request: NextRequest) {
   const [emExecucao, pausadas] = await Promise.all([
     prisma.ordemServico.findFirst({
       where: { mecanicoId: sessao.mecanicoId, status: "em_execucao" },
+      include: { tipoServico: { select: { nome: true } } },
     }),
     prisma.ordemServico.findMany({
       where: { mecanicoId: sessao.mecanicoId, status: "pausada" },
       orderBy: { criadoEm: "asc" },
+      include: { tipoServico: { select: { nome: true } } },
     }),
   ]);
 
