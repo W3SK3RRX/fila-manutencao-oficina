@@ -46,6 +46,7 @@ export function AbaFila({ osRecemCriadaId }: AbaFilaProps) {
             <th className="px-2 py-2 font-medium">Tipo</th>
             <th className="px-2 py-2 font-medium">Tempo de espera</th>
             <th className="px-2 py-2 font-medium">Prazo</th>
+            <th className="px-2 py-2 font-medium">Ações</th>
           </tr>
         </thead>
         <tbody>

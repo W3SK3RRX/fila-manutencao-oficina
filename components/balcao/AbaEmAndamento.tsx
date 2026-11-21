@@ -1,7 +1,12 @@
 "use client";
 
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useOsPorStatus } from "@/hooks/useOs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DialogoCancelarOs } from "@/components/balcao/DialogoCancelarOs";
+import { apiFetch, ApiError } from "@/lib/api-client";
 
 // Aba "Em andamento" do painel do balcão (Task 21): lista OS com status
 // 'em_execucao' ou 'pausada' (ver app/api/os/route.ts), já incluindo
@@ -9,6 +14,11 @@ import { Badge } from "@/components/ui/badge";
 // linhas pausadas). Nenhum fluxo de mecânico foi construído ainda nesta
 // fase do plano, então em um ambiente novo esta aba normalmente aparece
 // vazia — isso é esperado, não um erro.
+//
+// Coluna "Ações" (Task 22): devolver/cancelar, exibidos SOMENTE para linhas
+// 'pausada'. Uma linha 'em_execucao' não recebe nenhum botão aqui —
+// `devolverOs` (lib/os-service.ts) só aceita OS 'pausada' como origem, e não
+// há ação de balcão definida para uma OS em execução nesta task.
 export function AbaEmAndamento() {
   const { data, isLoading, isError } = useOsPorStatus("em_andamento");
 
@@ -43,6 +53,7 @@ export function AbaEmAndamento() {
             <th className="px-2 py-2 font-medium">Mecânico</th>
             <th className="px-2 py-2 font-medium">Status</th>
             <th className="px-2 py-2 font-medium">Motivo da pausa</th>
+            <th className="px-2 py-2 font-medium">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -63,11 +74,69 @@ export function AbaEmAndamento() {
                 <td className="px-2 py-2">
                   {pausada ? ((os.motivoPausa as string | null) ?? "—") : "—"}
                 </td>
+                <td className="px-2 py-2">
+                  {pausada ? (
+                    <div className="flex gap-2">
+                      <BotaoDevolverOs id={os.id as string} />
+                      <DialogoCancelarOs os={{ id: os.id as string, placa: os.placa as string }} />
+                    </div>
+                  ) : (
+                    "—"
+                  )}
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+interface BotaoDevolverOsProps {
+  id: string;
+}
+
+// Botão "Devolver" de uma OS 'pausada' (Task 22): devolve a OS à fila via
+// POST /api/os/:id/devolver (balcão pode devolver qualquer OS pausada em
+// nome do mecânico, ver nota em app/api/os/[id]/devolver/route.ts — sem
+// restrição de posse). Diferente do cancelamento, o brief não pede
+// confirmação aqui, então o clique dispara a chamada direto. Em sucesso:
+// invalida ["fila"] (a OS volta a aparecer lá) e ["os","em_andamento"] (a
+// linha some daqui). Em 409 (`TRANSICAO_INVALIDA` — a OS não está mais
+// 'pausada', ex.: o mecânico já retomou): mostra "A OS mudou de estado,
+// atualize a tela." inline abaixo do botão.
+function BotaoDevolverOs({ id }: BotaoDevolverOsProps) {
+  const queryClient = useQueryClient();
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function devolver() {
+    setEnviando(true);
+    setErro(null);
+    try {
+      await apiFetch(`/api/os/${id}/devolver`, { method: "POST" });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["fila"] }),
+        queryClient.invalidateQueries({ queryKey: ["os", "em_andamento"] }),
+      ]);
+    } catch (e) {
+      if (e instanceof ApiError && e.codigo === "TRANSICAO_INVALIDA") {
+        setErro("A OS mudou de estado, atualize a tela.");
+        return;
+      }
+      setErro("Não foi possível devolver a OS. Tente novamente.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Button variant="outline" size="sm" disabled={enviando} onClick={devolver}>
+        Devolver
+      </Button>
+      {erro && <p className="text-xs text-destructive">{erro}</p>}
     </div>
   );
 }
