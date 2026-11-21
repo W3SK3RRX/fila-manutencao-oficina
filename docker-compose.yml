@@ -4,10 +4,15 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-motomais}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-motomais}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your .env file}
       POSTGRES_DB: motomais
     ports:
-      - "5432:5432"
+      # Bound to localhost only: this compose file is reused as-is for the
+      # Marco 7 VPS deployment (app/caddy services get added on top of it),
+      # where Caddy fronts everything and the host has no reason to reach
+      # Postgres directly. Do not change this back to a public "5432:5432"
+      # bind.
+      - "127.0.0.1:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d
