@@ -118,6 +118,67 @@ describe("POST /api/auth/mecanico", () => {
     expect(corpo.erro).toBeTruthy();
   });
 
+  it("mecânico inativo: PIN correto retorna 401 PIN_INVALIDO (mesmo tratamento de 'não encontrado')", async () => {
+    const pinHash = await bcrypt.hash(pin, 10);
+    const mecanico = await prisma.mecanico.create({
+      data: { nome: `Mecanico Teste Inativo ${randomUUID()}`, pinHash, ativo: false },
+    });
+    mecanicoIds.push(mecanico.id);
+
+    const { POST } = await import("@/app/api/auth/mecanico/route");
+    const request = new Request("http://localhost/api/auth/mecanico", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mecanicoId: mecanico.id, pin }),
+    });
+
+    const response = await POST(request as never);
+    const corpo = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(corpo).toMatchObject({ codigo: "PIN_INVALIDO" });
+    expect(corpo.erro).toBeTruthy();
+    expect(getSetCookie(response)).toHaveLength(0);
+  });
+
+  it("bloqueio concorrente: uma rajada de tentativas erradas simultâneas bloqueia mesmo o PIN correto em seguida", async () => {
+    const pinHash = await bcrypt.hash(pin, 10);
+    const mecanico = await prisma.mecanico.create({
+      data: { nome: `Mecanico Teste Bloqueio Concorrente ${randomUUID()}`, pinHash },
+    });
+    mecanicoIds.push(mecanico.id);
+
+    const { POST } = await import("@/app/api/auth/mecanico/route");
+    const tentar = async (pinTentado: string) => {
+      const request = new Request("http://localhost/api/auth/mecanico", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mecanicoId: mecanico.id, pin: pinTentado }),
+      });
+      return POST(request as never);
+    };
+
+    // 10 tentativas erradas disparadas concorrentemente (Promise.all): se a
+    // reserva da tentativa não for síncrona/atômica antes do bcrypt/DB, uma
+    // rajada como esta poderia deixar mais de 5 tentativas "passarem" pela
+    // checagem de bloqueio antes de qualquer uma ser registrada.
+    const respostas = await Promise.all(Array.from({ length: 10 }, () => tentar("0000")));
+    for (const resposta of respostas) {
+      expect([401, 429]).toContain(resposta.status);
+    }
+
+    // Prova indireta de que o bloqueio já engatou a partir da rajada
+    // concorrente (não apenas de tentativas sequenciais): mesmo com o PIN
+    // CORRETO logo em seguida, a resposta deve ser 429 BLOQUEADO_TEMPORARIAMENTE.
+    const seguinte = await tentar(pin);
+    const corpoSeguinte = await seguinte.json();
+
+    expect(seguinte.status).toBe(429);
+    expect(corpoSeguinte).toMatchObject({ codigo: "BLOQUEADO_TEMPORARIAMENTE" });
+    expect(corpoSeguinte.erro).toBeTruthy();
+    expect(getSetCookie(seguinte)).toHaveLength(0);
+  });
+
   it("bloqueio: a 6ª tentativa errada na janela de 10min retorna 429, mesmo com o PIN correto", async () => {
     const pinHash = await bcrypt.hash(pin, 10);
     const mecanico = await prisma.mecanico.create({
