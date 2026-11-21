@@ -217,6 +217,8 @@ describe("PATCH /api/os/[id]", () => {
     const tipo = await criarTipo();
     const os = await criarOsDireta(tipo.id, "em_execucao", { mecanicoId: mecanico.id });
 
+    const eventosAntes = await prisma.osEvento.count({ where: { osId: os.id } });
+
     const { PATCH } = await import("@/app/api/os/[id]/route");
     const token = await assinarSessaoBalcao();
     const response = await PATCH(
@@ -231,6 +233,9 @@ describe("PATCH /api/os/[id]", () => {
 
     expect(response.status).toBe(409);
     expect(corpo.codigo).toBe("TRANSICAO_INVALIDA");
+
+    const eventosDepois = await prisma.osEvento.count({ where: { osId: os.id } });
+    expect(eventosDepois).toBe(eventosAntes);
 
     const osAtual = await prisma.ordemServico.findUniqueOrThrow({ where: { id: os.id } });
     expect(osAtual.status).toBe("em_execucao");
