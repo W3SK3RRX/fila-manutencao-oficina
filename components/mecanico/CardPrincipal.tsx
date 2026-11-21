@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api-client";
 import { useMinhasOs } from "@/hooks/useMinhasOs";
 import { useFila } from "@/hooks/useFila";
 import { formatarTempoEspera } from "@/lib/format";
 import { BotaoPegarProximo } from "@/components/mecanico/BotaoPegarProximo";
+import { DialogoPausar } from "@/components/mecanico/DialogoPausar";
+import { DialogoConfirmacao } from "@/components/mecanico/DialogoConfirmacao";
 
 // Card principal da tela do mecânico (app/mecanico/page.tsx, Task 25):
 // - Se useMinhasOs() tiver uma OS `em_execucao` (no máximo uma, por causa da
@@ -16,14 +20,18 @@ import { BotaoPegarProximo } from "@/components/mecanico/BotaoPegarProximo";
 // - Senão: delega para BotaoPegarProximo (botão de largura total + preview
 //   do topo da fila).
 //
-// Os botões Pausar/Concluir aqui são apenas visuais (sem `onClick` real): a
-// Task 26 (ainda não construída) é dona do diálogo de Pausar (3 motivos +
-// "outro") e do diálogo de confirmação genérico reusado por Concluir — não
-// chamamos POST /api/os/:id/pausar|concluir direto sem essa UI de
-// confirmação/motivo.
+// Pausar/Concluir (Task 26) só abrem seus diálogos (`DialogoPausar`/
+// `DialogoConfirmacao`, totalmente controlados via `open`/`onOpenChange`) —
+// o POST em si (/api/os/:id/pausar|concluir) e a invalidação de
+// ["mecanico-atual"] acontecem dentro desses diálogos, nunca direto no
+// clique do botão, para garantir o motivo (Pausar) e a confirmação
+// (Concluir) exigidos pelo brief.
 export function CardPrincipal() {
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useMinhasOs();
   const { data: fila } = useFila();
+  const [pausarAberto, setPausarAberto] = useState(false);
+  const [concluirAberto, setConcluirAberto] = useState(false);
 
   const emExecucao = data?.emExecucao ?? null;
   // Ruling 2 (brief): `iniciado_em` é sempre preenchido para uma OS
@@ -67,11 +75,17 @@ export function CardPrincipal() {
     return <BotaoPegarProximo proximaOs={fila?.[0]} />;
   }
 
+  const osId = emExecucao.id;
   const numero = emExecucao.numero as number;
   const placa = emExecucao.placa as string;
   const modeloMoto = emExecucao.modeloMoto as string;
   const descricao = emExecucao.descricao as string;
   const tipoServicoNome = emExecucao.tipoServico?.nome ?? "—";
+
+  async function aoConfirmarConcluir() {
+    await apiFetch(`/api/os/${osId}/concluir`, { method: "POST" });
+    await queryClient.invalidateQueries({ queryKey: ["mecanico-atual"] });
+  }
 
   return (
     <Card className="w-full">
@@ -107,20 +121,29 @@ export function CardPrincipal() {
             type="button"
             variant="outline"
             className="min-h-12 flex-1 text-base"
-            // Task 26 wires this up: diálogo de motivo de pausa (3 opções +
-            // "outro").
+            onClick={() => setPausarAberto(true)}
           >
             Pausar
           </Button>
           <Button
             type="button"
             className="min-h-12 flex-1 text-base"
-            // Task 26 wires this up: diálogo de confirmação genérico.
+            onClick={() => setConcluirAberto(true)}
           >
             Concluir
           </Button>
         </div>
       </CardContent>
+
+      <DialogoPausar osId={osId} open={pausarAberto} onOpenChange={setPausarAberto} />
+      <DialogoConfirmacao
+        open={concluirAberto}
+        onOpenChange={setConcluirAberto}
+        titulo={`Concluir OS #${numero}`}
+        descricao="A OS será marcada como concluída e sairá do seu painel."
+        rotuloConfirmar="Confirmar conclusão"
+        aoConfirmar={aoConfirmarConcluir}
+      />
     </Card>
   );
 }
