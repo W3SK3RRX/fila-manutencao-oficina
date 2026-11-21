@@ -12,12 +12,22 @@
 // fetch é mais simples e com menos overhead de setup do que configurar
 // handlers MSW (o brief desta task oferece as duas opções explicitamente).
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFila } from "@/hooks/useFila";
 
+// @testing-library/react's auto-cleanup only self-registers when the bare
+// `afterEach` exists on globalThis (it checks `typeof afterEach === "function"`
+// against the real global object). Como este projeto não usa `test.globals: true`
+// nem `setupFiles` no vitest.config.mts, o `afterEach` do Vitest só existe como
+// import explícito — então o auto-cleanup da RTL nunca dispara sozinho. Por
+// isso chamamos `cleanup()` manualmente aqui; sem esta linha, componentes
+// renderizados por um `it()` continuam montados (e suas inscrições, como o
+// polling de `useFila`, continuam ativas) no próximo `it()` do arquivo. Copie
+// esta linha para todo novo arquivo de teste jsdom deste projeto.
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
 
