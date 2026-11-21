@@ -32,6 +32,23 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.pathname.startsWith("/api/"),
       handler: new NetworkOnly(),
     },
+    // As áreas autenticadas (/balcao, /mecanico) nunca podem ser servidas do
+    // cache do service worker: o controle de sessão/PIN roda em `proxy.ts`,
+    // no servidor — ele só é verificado quando a requisição de fato chega
+    // lá. Se o `defaultCache` padrão (NetworkFirst para documentos) servisse
+    // um shell de página cacheado quando offline, alguém poderia ver a casca
+    // de uma página autenticada mesmo após logout/sessão expirada, sem nunca
+    // passar pelo check do servidor. Esta entrada vem ANTES de `defaultCache`
+    // pelo mesmo motivo da entrada de `/api/*` acima (first-match-wins): toda
+    // navegação para essas rotas exige rede real ou falha para o fallback
+    // `/offline` (o plugin de fallback continua anexado a `NetworkOnly`).
+    {
+      matcher: ({ url, request }) =>
+        request.destination === "document" &&
+        (url.pathname.startsWith("/balcao") ||
+          url.pathname.startsWith("/mecanico")),
+      handler: new NetworkOnly(),
+    },
     ...defaultCache,
   ],
   fallbacks: {
