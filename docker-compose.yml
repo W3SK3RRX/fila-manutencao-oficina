@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-motomais}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-motomais}
+      POSTGRES_DB: motomais
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d
+
+volumes:
+  db-data:
