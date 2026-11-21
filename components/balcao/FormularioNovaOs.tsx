@@ -36,7 +36,16 @@ type NovaOsFormData = z.input<typeof osCreateSchema>;
 // Em sucesso: limpa o formulário, invalida a query key ["fila"] (para que a
 // aba Fila, construída na Task 21, puxe a nova linha) e mostra uma
 // confirmação inline simples (sem lib de toast instalada).
-export function FormularioNovaOs() {
+//
+// `onOsCriada` (Task 21): callback opcional disparado com o `id` da OS recém
+// criada, para que `app/balcao/page.tsx` eleve esse id como estado
+// compartilhado e passe para `AbaFila`, que destaca visualmente a linha
+// nova assim que ela aparecer na fila.
+export interface FormularioNovaOsProps {
+  onOsCriada?: (id: string) => void;
+}
+
+export function FormularioNovaOs({ onOsCriada }: FormularioNovaOsProps = {}) {
   const queryClient = useQueryClient();
   const { data: tipos, isLoading: carregandoTipos } = useTiposServico();
   const [sucesso, setSucesso] = useState<string | null>(null);
@@ -73,6 +82,7 @@ export function FormularioNovaOs() {
       reset();
       await queryClient.invalidateQueries({ queryKey: ["fila"] });
       setSucesso(`OS criada com sucesso para a placa ${os.placa}.`);
+      onOsCriada?.(os.id);
     } catch (erro) {
       if (erro instanceof ApiError) {
         setErroEnvio(erro.message || "Não foi possível criar a OS. Tente novamente.");
