@@ -36,7 +36,13 @@ export class PgListener {
         return;
       }
       for (const callback of this.subscribers) {
-        callback(payload);
+        try {
+          callback(payload);
+        } catch (erro) {
+          // Isola a falha: um assinante que lança exceção não pode impedir
+          // a entrega aos demais nem derrubar o listener compartilhado.
+          console.error("pg-listener: assinante lançou exceção", erro);
+        }
       }
     });
 

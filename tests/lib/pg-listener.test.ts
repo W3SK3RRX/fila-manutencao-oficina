@@ -97,4 +97,32 @@ describe("getListener", () => {
     expect(resultados[0]).toEqual(payloadEsperado);
     expect(resultados[1]).toEqual(payloadEsperado);
   });
+
+  it("isola exceção de um assinante: um segundo assinante bem-comportado ainda recebe a notificação", async () => {
+    const listener = getListener();
+    const payloadEsperado = { id: randomUUID(), status: "concluida" };
+
+    const recebidoPeloBom = await new Promise<unknown>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pararNotificacoes();
+        reject(new Error("timeout waiting for notification"));
+      }, 3000);
+
+      const unsubscribeRuim = listener.on(() => {
+        throw new Error("assinante mal-comportado: falha proposital");
+      });
+      const unsubscribeBom = listener.on((payload) => {
+        clearTimeout(timeout);
+        pararNotificacoes();
+        unsubscribeRuim();
+        unsubscribeBom();
+        resolve(payload);
+      });
+
+      notifierClient = new Client({ connectionString: process.env.DATABASE_URL });
+      const pararNotificacoes = notificarAteConfirmar(notifierClient, payloadEsperado);
+    });
+
+    expect(recebidoPeloBom).toEqual(payloadEsperado);
+  });
 });
