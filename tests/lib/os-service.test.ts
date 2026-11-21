@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import {
   TransicaoInvalidaError,
+  PADRAO_VIOLACAO_UNICIDADE,
   criarOs,
   editarOs,
   pegarProximo,
@@ -277,6 +278,20 @@ describe("retomarOs", () => {
 
     await expect(retomarOs(pausada.id, mecanico.id)).rejects.toThrow(TransicaoInvalidaError);
   });
+
+  it("rejeita o mecânico errado (ownership check) mesmo com a OS pausada", async () => {
+    const tipo = await criarTipo();
+    const dono = await criarMecanico("Dono");
+    const outro = await criarMecanico("Outro");
+    const os = await criarOsDireta(tipo.id, "pausada", dono.id);
+
+    await expect(retomarOs(os.id, outro.id)).rejects.toThrow(TransicaoInvalidaError);
+    const eventos = await contarEventos(os.id);
+    expect(eventos).toHaveLength(0);
+
+    const osAposFalha = await prisma.ordemServico.findUniqueOrThrow({ where: { id: os.id } });
+    expect(osAposFalha.mecanicoId).toBe(dono.id);
+  });
 });
 
 describe("concluirOs", () => {
@@ -296,6 +311,34 @@ describe("concluirOs", () => {
     const os = await criarOsDireta(tipo.id, "pausada", mecanico.id);
 
     await expect(concluirOs(os.id, mecanico.id)).rejects.toThrow(TransicaoInvalidaError);
+  });
+
+  it("rejeita o mecânico errado (ownership check) mesmo com a OS em_execucao", async () => {
+    const tipo = await criarTipo();
+    const dono = await criarMecanico("Dono");
+    const outro = await criarMecanico("Outro");
+    const os = await criarOsDireta(tipo.id, "em_execucao", dono.id);
+
+    await expect(concluirOs(os.id, outro.id)).rejects.toThrow(TransicaoInvalidaError);
+    const eventos = await contarEventos(os.id);
+    expect(eventos).toHaveLength(0);
+
+    const osAposFalha = await prisma.ordemServico.findUniqueOrThrow({ where: { id: os.id } });
+    expect(osAposFalha.mecanicoId).toBe(dono.id);
+  });
+});
+
+describe("PADRAO_VIOLACAO_UNICIDADE", () => {
+  it("casa apenas a violação da constraint ux_ordens_servico_mecanico_em_execucao", () => {
+    const mensagemEsperada =
+      'duplicate key value violates unique constraint "ux_ordens_servico_mecanico_em_execucao"';
+    expect(PADRAO_VIOLACAO_UNICIDADE.test(mensagemEsperada)).toBe(true);
+  });
+
+  it("não casa uma violação de unicidade de outra constraint, mesmo com o mesmo prefixo genérico", () => {
+    const mensagemOutraConstraint =
+      'duplicate key value violates unique constraint "ordens_servico_placa_key"';
+    expect(PADRAO_VIOLACAO_UNICIDADE.test(mensagemOutraConstraint)).toBe(false);
   });
 });
 

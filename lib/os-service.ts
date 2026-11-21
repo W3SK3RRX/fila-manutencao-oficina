@@ -37,8 +37,16 @@ export type OsEditInput = OsCreateInput;
 // em_execucao por vez), levantada pelo Postgres (código 23505) e propagada
 // pelo Prisma como erro de query bruta. Traduzimos essa violação, que é uma
 // regra de negócio (mecânico já tem outra OS em andamento), para o mesmo
-// tipo de erro usado em qualquer outra transição inválida.
-const PADRAO_VIOLACAO_UNICIDADE = /duplicate key value violates unique constraint/;
+// tipo de erro usado em qualquer outra transição inválida. O nome da
+// constraint é verificado explicitamente para que uma violação de unicidade
+// de qualquer outra constraint (hoje inexistente nestes caminhos de código,
+// mas não impossível no futuro) nunca seja mascarada como esta regra de
+// negócio — ela deve propagar como erro inesperado.
+// Exportada apenas para permitir um teste unitário direto da especificidade
+// do padrão (ver tests/lib/os-service.test.ts); não é parte da API pública
+// do módulo.
+export const PADRAO_VIOLACAO_UNICIDADE =
+  /duplicate key value violates unique constraint "ux_ordens_servico_mecanico_em_execucao"/;
 
 function traduzirViolacaoUnicidade(err: unknown, mensagem: string): never {
   const textoErro = err instanceof Error ? err.message : String(err);
