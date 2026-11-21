@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SerwistProvider } from "@serwist/next/react";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -25,7 +26,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        {/* Service worker (Task 33): registra apenas em produção. O gate
+            não é algo inventado aqui — `disable` é a opção que o próprio
+            @serwist/next/react expõe para exatamente este caso. */}
+        <SerwistProvider
+          swUrl="/sw.js"
+          disable={process.env.NODE_ENV !== "production"}
+        >
+          <Providers>{children}</Providers>
+        </SerwistProvider>
       </body>
     </html>
   );
