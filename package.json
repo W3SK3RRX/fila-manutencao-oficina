@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "dotenv-cli -e .env.test -- vitest run",
+    "test:watch": "dotenv-cli -e .env.test -- vitest"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
