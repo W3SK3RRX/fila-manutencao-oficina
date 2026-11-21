@@ -22,13 +22,16 @@ export interface MinhasOsResposta {
   pausadas: OsMecanico[];
 }
 
-// Mesma config de polling fixo de Fase 1 (constraint global) usada por
-// useFila/useOsPorStatus: refetchInterval de 5s e refetch em foco/reconexão.
+// Polling de 60s como rede de segurança (Task 31): a freshness no dia a dia
+// vem de hooks/useEventosSSE.ts, que invalida esta query a cada evento SSE.
+// refetchOnWindowFocus/refetchOnReconnect continuam true, mesmo motivo
+// documentado em hooks/useFila.ts. hooks/useOs.ts (useOsPorStatus) fica fora
+// do escopo desta task e continua com refetchInterval de 5s.
 export function useMinhasOs() {
   return useQuery({
     queryKey: ["mecanico-atual"],
     queryFn: () => apiFetch<MinhasOsResposta>("/api/mecanico/atual"),
-    refetchInterval: 5000,
+    refetchInterval: 60000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

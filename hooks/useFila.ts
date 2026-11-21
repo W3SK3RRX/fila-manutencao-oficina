@@ -16,14 +16,16 @@ export interface FilaLinha {
   [chave: string]: unknown;
 }
 
-// Polling fixo de Fase 1 (constraint global): refetchInterval de 5s e
-// refetch em foco/reconexão, sem nenhum state manager além do TanStack
-// Query.
+// Polling de 60s como rede de segurança (Task 31): a freshness no dia a dia
+// vem de hooks/useEventosSSE.ts, que invalida esta query a cada evento SSE.
+// refetchOnWindowFocus/refetchOnReconnect continuam true — uma aba
+// adormecida que volta a ter foco, ou uma rede que reconecta, ainda deve
+// refazer o fetch na hora em vez de esperar até 60s.
 export function useFila() {
   return useQuery({
     queryKey: ["fila"],
     queryFn: () => apiFetch<FilaLinha[]>("/api/fila"),
-    refetchInterval: 5000,
+    refetchInterval: 60000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
