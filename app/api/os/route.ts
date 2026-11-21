@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { NOME_COOKIE_SESSAO, verificarSessao } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { linhaParaCamelCase } from "@/lib/api-utils";
+import { osCreateSchema } from "@/lib/schemas";
+import { criarOs } from "@/lib/os-service";
 
 // GET /api/os?status=em_andamento|concluidas_hoje — rota exclusiva do
 // balcão (lista de acompanhamento de OS em andamento/concluídas hoje, usada
@@ -79,4 +81,39 @@ export async function GET(request: NextRequest) {
         `;
 
   return NextResponse.json(linhas.map((linha) => linhaParaCamelCase(linha)));
+}
+
+// POST /api/os — cria uma nova OS (entra na fila como 'na_fila'). Rota
+// exclusiva do balcão: mesma checagem de sessão/perfil do GET acima.
+export async function POST(request: NextRequest) {
+  const token = request.cookies.get(NOME_COOKIE_SESSAO)?.value;
+  const sessao = token ? await verificarSessao(token) : null;
+
+  if (!sessao) {
+    return NextResponse.json(
+      { erro: "Não autenticado", codigo: "NAO_AUTENTICADO" },
+      { status: 401 },
+    );
+  }
+
+  if (sessao.perfil !== "balcao") {
+    return NextResponse.json(
+      { erro: "Acesso restrito ao balcão", codigo: "PERFIL_NAO_AUTORIZADO" },
+      { status: 403 },
+    );
+  }
+
+  const corpo = await request.json().catch(() => null);
+  const dados = osCreateSchema.safeParse(corpo);
+
+  if (!dados.success) {
+    return NextResponse.json(
+      { erro: "Dados inválidos", codigo: "DADOS_INVALIDOS" },
+      { status: 400 },
+    );
+  }
+
+  const os = await criarOs(dados.data);
+
+  return NextResponse.json(os, { status: 201 });
 }
