@@ -1,9 +1,9 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Models are added starting in Task 5. The datasource connection URL lives
-// in prisma7.config.ts (Prisma 7 no longer allows url = env("...") here),
-// sourced from DATABASE_URL / TEST_DATABASE_URL in .env.
+// The datasource connection URL lives in prisma7.config.ts (Prisma 7 no
+// longer allows url = env("...") here), sourced from DATABASE_URL /
+// TEST_DATABASE_URL in .env.
 
 generator client {
   provider = "prisma-client"
@@ -12,4 +12,79 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum StatusOs {
+  na_fila
+  em_execucao
+  pausada
+  concluida
+  cancelada
+
+  @@map("status_os")
+}
+
+model TipoServico {
+  id    String  @id @default(uuid()) @db.Uuid
+  nome  String  @unique
+  peso  Int
+  ativo Boolean @default(true)
+
+  ordensServico OrdemServico[]
+
+  @@map("tipos_servico")
+}
+
+model Mecanico {
+  id      String  @id @default(uuid()) @db.Uuid
+  nome    String
+  pinHash String  @map("pin_hash")
+  ativo   Boolean @default(true)
+
+  ordensServico OrdemServico[]
+  osEventos     OsEvento[]
+
+  @@map("mecanicos")
+}
+
+model OrdemServico {
+  id              String    @id @default(uuid()) @db.Uuid
+  numero          Int       @default(autoincrement())
+  placa           String
+  modeloMoto      String    @map("modelo_moto")
+  clienteNome     String    @map("cliente_nome")
+  clienteTelefone String    @map("cliente_telefone")
+  descricao       String
+  tipoServicoId   String    @map("tipo_servico_id") @db.Uuid
+  prazo           DateTime? @db.Timestamptz
+  status          StatusOs  @default(na_fila)
+  mecanicoId      String?   @map("mecanico_id") @db.Uuid
+  motivoPausa     String?   @map("motivo_pausa")
+  criadoEm        DateTime  @default(now()) @map("criado_em") @db.Timestamptz
+  iniciadoEm      DateTime? @map("iniciado_em") @db.Timestamptz
+  concluidoEm     DateTime? @map("concluido_em") @db.Timestamptz
+  atualizadoEm    DateTime  @default(now()) @map("atualizado_em") @db.Timestamptz
+
+  tipoServico TipoServico @relation(fields: [tipoServicoId], references: [id])
+  mecanico    Mecanico?   @relation(fields: [mecanicoId], references: [id])
+  osEventos   OsEvento[]
+
+  @@index([status])
+  @@map("ordens_servico")
+}
+
+model OsEvento {
+  id         String    @id @default(uuid()) @db.Uuid
+  osId       String    @map("os_id") @db.Uuid
+  deStatus   StatusOs? @map("de_status")
+  paraStatus StatusOs  @map("para_status")
+  mecanicoId String?   @map("mecanico_id") @db.Uuid
+  origem     String
+  motivo     String?
+  criadoEm   DateTime  @default(now()) @map("criado_em") @db.Timestamptz
+
+  ordemServico OrdemServico @relation(fields: [osId], references: [id])
+  mecanico     Mecanico?    @relation(fields: [mecanicoId], references: [id])
+
+  @@map("os_eventos")
 }
