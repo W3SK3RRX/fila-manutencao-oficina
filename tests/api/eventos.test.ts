@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { assinarSessaoBalcao, NOME_COOKIE_SESSAO } from "@/lib/auth";
-import { getListener } from "@/lib/pg-listener";
+import { getListener, type OsChangeCallback } from "@/lib/pg-listener";
 
 // Mesmo padrão de teste de route handler usado em tests/api/fila.test.ts:
 // importar a função exportada (GET) diretamente e invocá-la com um
@@ -144,6 +144,69 @@ describe("GET /api/eventos", () => {
         controlador.abort();
         await reader.cancel().catch(() => {});
       }
+    },
+    10000,
+  );
+
+  it(
+    "controller fechado: enqueue do payload e do heartbeat não lança nem derruba o processo",
+    async () => {
+      // Regressão para o finding da review do Task 30: antes do fix, um
+      // enqueue() "em trânsito" — capturado pelo subscriber do listener ou
+      // pelo tick do heartbeat ANTES de limpar() rodar, mas invocado DEPOIS
+      // que o controller já fechou — lançava
+      // "TypeError [ERR_INVALID_STATE]: Invalid state: Controller is already
+      // closed" dentro de um callback sem try/catch (o do setInterval em
+      // particular), o que derruba o processo Node inteiro, não só esta
+      // conexão. Não dá para esperar os 25s reais do heartbeat nem
+      // reproduzir a janela de corrida exata por timing sem flakiness, então
+      // simulamos a corrida diretamente: capturamos as funções de callback
+      // reais que o route.ts registra (via spy em PgListener.on e em
+      // global.setInterval), fechamos o stream (o que roda limpar() de
+      // verdade) e então invocamos os callbacks capturados manualmente,
+      // como se uma notificação/tick já estivesse "em voo" quando o
+      // controller fechou.
+      const listener = getListener();
+      const onOriginal = listener.on.bind(listener);
+      let callbackCapturado: OsChangeCallback | undefined;
+      const onSpy = vi.spyOn(listener, "on").mockImplementation((cb) => {
+        callbackCapturado = cb;
+        return onOriginal(cb);
+      });
+
+      const setIntervalOriginal = globalThis.setInterval;
+      let heartbeatCapturado: (() => void) | undefined;
+      const setIntervalSpy = vi
+        .spyOn(globalThis, "setInterval")
+        .mockImplementation((...args: Parameters<typeof setInterval>) => {
+          heartbeatCapturado = args[0] as () => void;
+          return setIntervalOriginal(...args);
+        });
+
+      const { GET } = await import("@/app/api/eventos/route");
+      const token = await assinarSessaoBalcao();
+      const controlador = new AbortController();
+      const response = await GET(buildRequest("/api/eventos", token, controlador.signal));
+      const reader = response.body!.getReader();
+
+      onSpy.mockRestore();
+      setIntervalSpy.mockRestore();
+
+      expect(callbackCapturado).toBeTypeOf("function");
+      expect(heartbeatCapturado).toBeTypeOf("function");
+
+      // Fecha o stream de verdade (equivalente ao cliente desconectando):
+      // roda cancel() -> limpar() -> unsubscribe + clearInterval reais.
+      await reader.cancel();
+
+      // Simula o enqueue "em trânsito" chegando depois do fechamento. Sem o
+      // fix, qualquer uma destas duas chamadas lançaria sem nada para
+      // capturar (a segunda, dentro de um setInterval bruto, derrubaria o
+      // processo em produção).
+      expect(() =>
+        callbackCapturado!({ id: randomUUID(), status: "em_execucao" }),
+      ).not.toThrow();
+      expect(() => heartbeatCapturado!()).not.toThrow();
     },
     10000,
   );

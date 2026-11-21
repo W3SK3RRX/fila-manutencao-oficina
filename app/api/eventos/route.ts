@@ -42,11 +42,32 @@ export async function GET(request: NextRequest) {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       unsubscribe = getListener().on((payload) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        } catch {
+          // Controller já fechado (cliente desconectou numa janela estreita
+          // antes de abort/cancel rodarem): sem o try/catch, esse enqueue()
+          // lançaria dentro do callback do subscriber. O dispatch loop de
+          // lib/pg-listener.ts já isola essa exceção por assinante, mas
+          // tratamos aqui também e encerramos esta assinatura/intervalo em
+          // vez de deixar uma assinatura zumbi.
+          limpar();
+        }
       });
 
       heartbeat = setInterval(() => {
-        controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        try {
+          controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        } catch {
+          // Mesmo cenário acima, mas aqui dentro de um setInterval bruto:
+          // sem este try/catch, o próximo tick lançaria
+          // "Invalid state: Controller is already closed" sem nada para
+          // capturá-lo, e o comportamento padrão do Node derruba o
+          // processo inteiro (todas as outras conexões SSE juntas), não
+          // apenas esta. Em vez de engolir o erro silenciosamente,
+          // encerramos a assinatura e o próprio intervalo.
+          limpar();
+        }
       }, HEARTBEAT_MS);
     },
     cancel() {
