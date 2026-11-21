@@ -7,8 +7,10 @@ import { SignJWT, jwtVerify } from "jose";
 
 export const NOME_COOKIE_SESSAO = "sessao";
 
-const DURACAO_SESSAO_BALCAO_SEGUNDOS = 60 * 60 * 12; // 12h
-const DURACAO_SESSAO_MECANICO_SEGUNDOS = 60 * 60 * 24 * 30; // 30d
+// Exportadas para que route handlers que gravem o cookie diretamente via
+// NextResponse.cookies (em vez de gravarCookieSessao) usem o mesmo maxAge.
+export const DURACAO_SESSAO_BALCAO_SEGUNDOS = 60 * 60 * 12; // 12h
+export const DURACAO_SESSAO_MECANICO_SEGUNDOS = 60 * 60 * 24 * 30; // 30d
 
 export type SessaoBalcao = { perfil: "balcao" };
 export type SessaoMecanico = { perfil: "mecanico"; mecanicoId: string };
