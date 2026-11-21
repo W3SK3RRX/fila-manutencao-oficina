@@ -26,8 +26,11 @@ export async function POST(request: Request) {
   // DB, bcrypt.compare), para fechar a corrida TOCTOU em que uma rajada de
   // requisições concorrentes passaria todas pela checagem de bloqueio antes
   // de qualquer uma registrar uma falha. Se a tentativa não puder ser
-  // reservada, já está bloqueado.
-  if (!reservarTentativa(mecanicoId)) {
+  // reservada, já está bloqueado. Guardamos o id da reserva (não apenas um
+  // booleano) para poder desfazer exatamente esta reserva mais tarde, sem
+  // depender de posição no array (ver lib/pin-lockout.ts).
+  const idDaReserva = reservarTentativa(mecanicoId);
+  if (idDaReserva === null) {
     return NextResponse.json(
       {
         erro: "Muitas tentativas incorretas. Tente novamente em alguns minutos.",
@@ -37,11 +40,24 @@ export async function POST(request: Request) {
     );
   }
 
-  // Mecânicos inativos são tratados exatamente como "não encontrado" para
-  // fins de autenticação (mesma resposta 401 PIN_INVALIDO), para não vazar se
-  // o id existe mas está desativado.
-  const mecanico = await prisma.mecanico.findFirst({ where: { id: mecanicoId, ativo: true } });
-  const pinValido = mecanico ? await bcrypt.compare(pin, mecanico.pinHash) : false;
+  // O trabalho assíncrono entre reservar e (potencialmente) desfazer a
+  // tentativa fica num try/catch: se a consulta ao DB ou o bcrypt.compare
+  // lançarem (erro transitório de infraestrutura), a reserva feita acima não
+  // deve ficar presa "para sempre" de forma diferente do caminho normal — o
+  // mais simples e seguro aqui é deixá-la contar como falha (mesmo
+  // comportamento de um PIN incorreto) e devolver 401, em vez de deixar a
+  // exceção subir sem tratamento.
+  let mecanico: Awaited<ReturnType<typeof prisma.mecanico.findFirst>> = null;
+  let pinValido = false;
+  try {
+    // Mecânicos inativos são tratados exatamente como "não encontrado" para
+    // fins de autenticação (mesma resposta 401 PIN_INVALIDO), para não vazar
+    // se o id existe mas está desativado.
+    mecanico = await prisma.mecanico.findFirst({ where: { id: mecanicoId, ativo: true } });
+    pinValido = mecanico ? await bcrypt.compare(pin, mecanico.pinHash) : false;
+  } catch {
+    return NextResponse.json({ erro: "PIN inválido", codigo: "PIN_INVALIDO" }, { status: 401 });
+  }
 
   if (!mecanico || !pinValido) {
     return NextResponse.json({ erro: "PIN inválido", codigo: "PIN_INVALIDO" }, { status: 401 });
@@ -49,7 +65,7 @@ export async function POST(request: Request) {
 
   // PIN correto: desfaz a reserva feita acima para não contar um login válido
   // como tentativa falha.
-  desfazerTentativa(mecanicoId);
+  desfazerTentativa(mecanicoId, idDaReserva);
 
   const token = await assinarSessaoMecanico(mecanico.id);
   const resposta = NextResponse.json({ ok: true });
