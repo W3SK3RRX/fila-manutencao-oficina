@@ -55,7 +55,8 @@ export async function POST(request: Request) {
     // se o id existe mas está desativado.
     mecanico = await prisma.mecanico.findFirst({ where: { id: mecanicoId, ativo: true } });
     pinValido = mecanico ? await bcrypt.compare(pin, mecanico.pinHash) : false;
-  } catch {
+  } catch (err) {
+    console.error("Erro inesperado ao autenticar mecânico:", err);
     return NextResponse.json({ erro: "PIN inválido", codigo: "PIN_INVALIDO" }, { status: 401 });
   }
 
