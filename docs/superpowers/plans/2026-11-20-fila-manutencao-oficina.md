@@ -31,11 +31,11 @@
 
 ## Review Focus
 
-- **Fila vazia / corrida parcial em `pegar_proximo`:** com menos OS na fila do que mecânicos concorrentes chamando ao mesmo tempo, os mecânicos excedentes devem receber 204 (não um erro), e nenhuma OS pode ser entregue duas vezes — coberto no teste de concorrência da Task 12.
-- **Bloqueio de PIN:** na 6ª tentativa errada dentro da janela de 10 minutos, mesmo o PIN correto deve ser recusado até a janela expirar — teste dedicado na Task 18.
-- **Isolamento entre mecânicos:** um mecânico não pode pausar, retomar, concluir ou devolver uma OS que pertence a outro mecânico, mesmo autenticado e com o `id` correto da OS — teste na Task 22.
-- **Transições fora de ordem:** editar ou cancelar uma OS que não está mais em `na_fila`/`pausada` (ex.: já `em_execucao` ou `concluida`) deve retornar 409 e não gravar evento — teste na Task 20.
-- **Preservação do tempo de espera ao devolver à fila:** "devolver à fila" deve limpar `mecanico_id` mas manter `criado_em` inalterado, para que o score de espera não zere — teste na Task 22.
+- **Fila vazia / corrida parcial em `pegar_proximo`:** com menos OS na fila do que mecânicos concorrentes chamando ao mesmo tempo, os mecânicos excedentes devem receber 204 (não um erro), e nenhuma OS pode ser entregue duas vezes — coberto no teste de concorrência da Task 8.
+- **Bloqueio de PIN:** na 6ª tentativa errada dentro da janela de 10 minutos, mesmo o PIN correto deve ser recusado até a janela expirar — teste dedicado na Task 12.
+- **Isolamento entre mecânicos:** um mecânico não pode pausar, retomar, concluir ou devolver uma OS que pertence a outro mecânico, mesmo autenticado e com o `id` correto da OS — teste na Task 17.
+- **Transições fora de ordem:** editar ou cancelar uma OS que não está mais em `na_fila`/`pausada` (ex.: já `em_execucao` ou `concluida`) deve retornar 409 e não gravar evento — teste na Task 16.
+- **Preservação do tempo de espera ao devolver à fila:** "devolver à fila" deve limpar `mecanico_id` mas manter `criado_em` inalterado, para que o score de espera não zere — teste na Task 14.
 
 ---
 
@@ -147,9 +147,11 @@ git commit -m "chore: add shadcn/ui, TanStack Query, Prisma, auth and test deps"
 - Create: `docker-compose.yml` (services: `db` only for now — `app`/`caddy` land in Marco 7)
 - Create: `.env.example`
 - Create: `prisma/schema.prisma` (datasource + generator only; models come in Task 5)
+- Create: `lib/db.ts`
 
 **Interfaces:**
 - Produces: `DATABASE_URL` pointing at a local `db` service on port 5432; `TEST_DATABASE_URL` pointing at a second database name (`motomais_test`) on the same instance, used only by integration tests.
+- Produces: `lib/db.ts` exporting a Prisma Client singleton as `export const prisma: PrismaClient`, guarded against re-instantiation on every module reload in dev (cache the instance on `globalThis` and reuse it when present). Every later task that touches the database (from Task 5's `calcular_score` test onward) imports this `prisma` export — no other file may call `new PrismaClient()`.
 
 - [ ] **Step 1: Write `docker-compose.yml`** with a `db` service: `postgres:16`, env `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB=motomais`, a named volume for persistence, port `5432:5432`, and an `init` script (mounted via `docker-entrypoint-initdb.d`) that runs `CREATE DATABASE motomais_test;`.
 
@@ -157,11 +159,13 @@ git commit -m "chore: add shadcn/ui, TanStack Query, Prisma, auth and test deps"
 
 - [ ] **Step 3: `npx prisma init --datasource-provider postgresql`**, then point its `url` at `env("DATABASE_URL")`.
 
-- [ ] **Step 4: Bring up the database and verify connectivity**
+- [ ] **Step 4: Write `lib/db.ts`** with the Prisma Client singleton described above, then run `npx prisma generate` to confirm `@prisma/client` builds against the (still model-less) schema without error.
+
+- [ ] **Step 5: Bring up the database and verify connectivity**
 
 Run: `docker compose up -d db`, then `npx prisma db pull` or `psql` ping to confirm both `motomais` and `motomais_test` exist.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add -A
