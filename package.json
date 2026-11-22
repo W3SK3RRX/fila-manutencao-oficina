@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "dotenv-cli -e .env.test -- vitest run",
-    "test:watch": "dotenv-cli -e .env.test -- vitest"
+    "test:watch": "dotenv-cli -e .env.test -- vitest",
+    "mecanico:criar": "tsx scripts/mecanico-criar.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
