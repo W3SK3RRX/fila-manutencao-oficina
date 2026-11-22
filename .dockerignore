@@ -1,0 +1,21 @@
+node_modules
+.next
+.git
+.superpowers
+npm-debug.log*
+
+# Secrets / local env — compose passes these in via env_file/environment,
+# never baked into the image.
+.env
+.env.*
+!.env.example
+
+# Not needed inside the build context.
+docs
+*.pdf
+README.md
+.vscode
+.idea
+coverage
+tsconfig.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,24 @@
+# Reverse proxy for the `app` service (docker-compose.yml).
+#
+# {$DOMAIN:localhost} — set DOMAIN to your real domain (e.g. in .env, picked
+# up by `docker compose` interpolation) for production: Caddy then obtains
+# and renews a Let's Encrypt certificate for it automatically. Left unset,
+# it falls back to "localhost", for which Caddy serves HTTPS with its own
+# locally-trusted/self-signed certificate — use this for the local
+# `docker compose up --build` verification in task-35-brief.md Step 4.
+{$DOMAIN:localhost} {
+	encode gzip
+
+	# flush_interval -1 puts the proxy in low-latency mode: it disables
+	# response buffering and flushes to the client after every write
+	# instead of waiting. Required for /api/eventos (SSE, Task 30) — a
+	# buffered proxy would make Marco 6's real-time queue updates
+	# (Tasks 28-31) appear stalled in production. (Caddy already flushes
+	# immediately for responses with Content-Type: text/event-stream
+	# regardless, since /api/eventos sets that header itself, but this
+	# directive is the explicit, resilient guarantee: it holds even if
+	# that header were ever dropped or the route refactored.)
+	reverse_proxy app:3000 {
+		flush_interval -1
+	}
+}

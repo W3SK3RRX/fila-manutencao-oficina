@@ -16,6 +16,57 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      # `app`'s depends_on below waits for this before starting, so
+      # `prisma migrate deploy` never races Postgres's own startup.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-motomais} -d motomais"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Points at the `db` service by its compose service name — containers
+      # don't share the host's network namespace, so `localhost` (as used
+      # in .env for host-side `npm run dev`) would not reach Postgres here.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-motomais}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your .env file}@db:5432/motomais?schema=public
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your .env file}
+      BALCAO_SENHA: ${BALCAO_SENHA:?set BALCAO_SENHA in your .env file}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      TZ: ${TZ:-America/Fortaleza}
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      # Forwarded into the container's own process environment so Caddy's
+      # `{$DOMAIN:localhost}` (Caddyfile) can read it — compose's ${...}
+      # interpolation above only substitutes into this YAML's own text at
+      # parse time, it does NOT by itself forward a host/.env variable into
+      # a container's runtime environment. Without this `environment:`
+      # block, DOMAIN in .env would never reach the caddy process and it
+      # would silently always fall back to localhost, even in production.
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
 
 volumes:
   db-data:
+  caddy-data:
+  caddy-config:
