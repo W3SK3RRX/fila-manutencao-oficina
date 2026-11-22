@@ -176,11 +176,24 @@ export function FormularioNovaOs({ onOsCriada }: FormularioNovaOsProps = {}) {
                   aria-invalid={Boolean(errors.tipoServicoId)}
                   className="w-full"
                 >
-                  <SelectValue
-                    placeholder={
-                      carregandoTipos ? "Carregando..." : "Selecione o tipo de serviço"
-                    }
-                  />
+                  {/* I7 (revisão final de branch): <Select.Value> da base-ui
+                      só resolve um rótulo a partir do `value` (aqui, o UUID
+                      de tipos_servico) se receber `items` no `<Select.Root>`
+                      ou uma children render-prop própria — sem nenhum dos
+                      dois, ela cai no fallback de renderizar o valor cru
+                      (o UUID), como o revisor da Task 22 observou ao vivo.
+                      A render-prop resolve o nome a partir da mesma lista
+                      `tipos` já carregada por useTiposServico(), e também
+                      assume o papel do placeholder (que é ignorado quando
+                      `children` é informado, por design da lib). */}
+                  <SelectValue>
+                    {(valor: string | null) => {
+                      if (!valor) {
+                        return carregandoTipos ? "Carregando..." : "Selecione o tipo de serviço";
+                      }
+                      return tipos?.find((tipo) => tipo.id === valor)?.nome ?? valor;
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {tipos?.map((tipo) => (

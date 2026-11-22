@@ -28,8 +28,8 @@ import { DialogoConfirmacao } from "@/components/mecanico/DialogoConfirmacao";
 // (Concluir) exigidos pelo brief.
 export function CardPrincipal() {
   const queryClient = useQueryClient();
-  const { data, isLoading, isError } = useMinhasOs();
-  const { data: fila } = useFila();
+  const { data, isLoading, isError, isFetching: atualizandoMinhasOs } = useMinhasOs();
+  const { data: fila, isFetching: atualizandoFila } = useFila();
   const [pausarAberto, setPausarAberto] = useState(false);
   const [concluirAberto, setConcluirAberto] = useState(false);
 
@@ -72,7 +72,16 @@ export function CardPrincipal() {
   }
 
   if (!emExecucao) {
-    return <BotaoPegarProximo proximaOs={fila?.[0]} />;
+    // I2 (revisão final de branch): desabilita o botão durante um refetch de
+    // qualquer uma das duas queries (ex.: `refetchOnWindowFocus` ao voltar
+    // do segundo plano) para não deixar "Pegar próximo" clicável com uma
+    // prévia de fila potencialmente desatualizada.
+    return (
+      <BotaoPegarProximo
+        proximaOs={fila?.[0]}
+        atualizando={atualizandoMinhasOs || atualizandoFila}
+      />
+    );
   }
 
   const osId = emExecucao.id;

@@ -250,11 +250,19 @@ export function DialogoEditarOs({ os }: DialogoEditarOsProps) {
                       aria-invalid={Boolean(errors.tipoServicoId)}
                       className="w-full"
                     >
-                      <SelectValue
-                        placeholder={
-                          carregandoTipos ? "Carregando..." : "Selecione o tipo de serviço"
-                        }
-                      />
+                      {/* I7 (revisão final de branch) — ver mesmo comentário
+                          em FormularioNovaOs.tsx: sem `items` no
+                          <Select.Root> ou children render-prop no
+                          <SelectValue>, a base-ui renderiza o `value` cru
+                          (o UUID de tipos_servico) em vez do nome. */}
+                      <SelectValue>
+                        {(valor: string | null) => {
+                          if (!valor) {
+                            return carregandoTipos ? "Carregando..." : "Selecione o tipo de serviço";
+                          }
+                          return tipos?.find((tipo) => tipo.id === valor)?.nome ?? valor;
+                        }}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {tipos?.map((tipo) => (

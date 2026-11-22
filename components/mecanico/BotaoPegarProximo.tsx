@@ -12,6 +12,16 @@ interface BotaoPegarProximoProps {
   // decidida no servidor por `pegar_proximo` (Task 17), que pode escolher
   // outra OS se a fila mudar entre o render e o clique.
   proximaOs: FilaLinha | null | undefined;
+  // I2 (revisão final de branch): acordo de spec não implementado — "Ao
+  // voltar do segundo plano, o app do mecânico busca a fila antes de
+  // permitir 'Pegar próximo'." Antes deste fix, o botão só desabilitava
+  // durante o próprio POST (`enviando`); durante um refetch disparado por
+  // `refetchOnWindowFocus` (useFila/useMinhasOs), o botão continuava
+  // clicável e a prévia "Próxima: OS #X" podia ficar desatualizada até o
+  // refetch terminar. `atualizando` é `isFetching` de useFila()/useMinhasOs()
+  // (ver components/mecanico/CardPrincipal.tsx), repassado para desabilitar
+  // o botão enquanto qualquer um dos dois estiver buscando dados novos.
+  atualizando?: boolean;
 }
 
 // Botão de largura total da tela principal do mecânico (Task 25), exibido
@@ -29,7 +39,7 @@ interface BotaoPegarProximoProps {
 // uma lib de toast — mesma escolha deliberada já feita em
 // components/balcao/FormularioNovaOs.tsx (sem lib de toast instalada neste
 // projeto).
-export function BotaoPegarProximo({ proximaOs }: BotaoPegarProximoProps) {
+export function BotaoPegarProximo({ proximaOs, atualizando = false }: BotaoPegarProximoProps) {
   const queryClient = useQueryClient();
   const [enviando, setEnviando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
@@ -72,7 +82,7 @@ export function BotaoPegarProximo({ proximaOs }: BotaoPegarProximoProps) {
     <div className="flex w-full flex-col gap-3">
       <Button
         type="button"
-        disabled={enviando}
+        disabled={enviando || atualizando}
         onClick={aoClicar}
         className="min-h-14 w-full text-lg font-medium"
       >
