@@ -20,8 +20,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-motomais}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your .env file}
       POSTGRES_DB: motomais
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d
