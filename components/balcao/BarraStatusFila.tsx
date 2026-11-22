@@ -31,24 +31,50 @@ export function BarraStatusFila() {
 
   const total = SEGMENTOS.reduce((soma, seg) => soma + data[seg.chave], 0);
 
-  if (total === 0) {
-    return <div className="h-2 w-full rounded-full bg-muted" title="Nenhuma OS registrada hoje" />;
-  }
-
   return (
-    <div className="flex h-2 w-full gap-0.5">
-      {SEGMENTOS.filter((seg) => data[seg.chave] > 0).map((seg) => {
-        const quantidade = data[seg.chave];
-        const porcentagem = Math.round((quantidade / total) * 100);
-        return (
-          <div
-            key={seg.chave}
-            className="h-full rounded-full"
-            style={{ backgroundColor: seg.cor, flexGrow: quantidade }}
-            title={`${seg.rotulo}: ${quantidade} (${porcentagem}%)`}
-          />
-        );
-      })}
+    <div className="flex flex-col gap-3">
+      {total === 0 ? (
+        <div className="h-2 w-full rounded-full" style={{ backgroundColor: "var(--input)" }} />
+      ) : (
+        // Revisão final de branch (feat/balcao-home-charts, achado Important):
+        // todos os 4 segmentos ficam no DOM mesmo com quantidade 0 — nunca
+        // filtramos os de contagem 0. Um segmento a 0 ocupa largura ~0 (via
+        // flexGrow), mas o `gap-0.5` do container ainda insere espaço antes e
+        // depois dele. Isso garante que laranja ("em execução") e âmbar
+        // ("pausadas") nunca ficam encostados, mesmo quando "concluídas hoje"
+        // (o segmento entre eles na ordem validada) está zerado — o estado
+        // mais comum de uma manhã, antes da primeira OS ser concluída.
+        <div className="flex h-2 w-full gap-0.5">
+          {SEGMENTOS.map((seg) => {
+            const quantidade = data[seg.chave];
+            return (
+              <div
+                key={seg.chave}
+                data-testid="segmento-status"
+                className="h-full rounded-full"
+                style={{ backgroundColor: seg.cor, flexGrow: quantidade }}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        {SEGMENTOS.map((seg) => {
+          const quantidade = data[seg.chave];
+          const porcentagem = total > 0 ? Math.round((quantidade / total) * 100) : 0;
+          return (
+            <span key={seg.chave} className="flex items-center gap-1.5">
+              <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: seg.cor }} />
+              {seg.rotulo}:{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {quantidade}
+                {total > 0 ? ` (${porcentagem}%)` : ""}
+              </span>
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
