@@ -21,18 +21,37 @@
 // cobria, corrigidas abaixo:
 //   1. Sem limpeza, cada identidade nova (ex.: um atacante variando de IP)
 //      deixava uma entrada no Map para sempre, mesmo depois de expirada —
-//      crescimento sem limite (DoS de memória). `limparExpiradasEManterTeto`
-//      varre o Map inteiro a cada chamada, removendo entradas totalmente
-//      expiradas, e aplica um teto rígido (`LIMITE_MAPA_ENTRADAS`) como
-//      último recurso, evictando a reserva mais antiga do Map inteiro
-//      enquanto o teto for excedido — cobre tanto o caso comum (expiração
-//      natural) quanto o caso patológico (teto atingido antes da janela de
-//      10min terminar).
+//      crescimento sem limite (DoS de memória). `limparExpiradas` varre o
+//      Map inteiro a cada chamada, removendo entradas totalmente expiradas;
+//      um teto rígido (`LIMITE_MAPA_ENTRADAS`) evita crescimento além disso
+//      mesmo antes da janela de 10min terminar (ver
+//      `liberarEspacoParaNovaIdentidade` abaixo para a regra de quem pode
+//      ser evictado para abrir espaço — crítico: nunca uma identidade já
+//      bloqueada).
 //   2. Nenhum limitador de tentativas por identidade sozinho impede força
 //      bruta verdadeiramente distribuída (um atacante com IPs
 //      praticamente ilimitados nunca esgota o limite de nenhum IP
 //      individual) — isso é tratado na camada de cima (BALCAO_SENHA com
 //      tamanho mínimo real, ver instrumentation.ts), não aqui.
+//
+// Correção de segurança adicional (apontada por review automatizado sobre a
+// primeira versão do teto/eviction): evictar "a reserva mais antiga do Map
+// inteiro" sem checar se essa identidade já está BLOQUEADA abre uma forma de
+// um atacante já bloqueado se desbloquear sozinho — basta inundar o Map com
+// identidades novas e descartáveis (ex.: mais IPs/strings) até o teto
+// forçar a eviction de alguém, e se a identidade evictada for justamente a
+// do próprio atacante (já com `LIMITE_TENTATIVAS` reservas, portanto a mais
+// "antiga" candidata), seu bloqueio é apagado e ele pode recomeçar. A regra
+// agora é: só identidades que NÃO estão bloqueadas (menos de
+// `LIMITE_TENTATIVAS` reservas na janela atual) podem ser evictadas. Se o
+// Map estiver cheio só de identidades já bloqueadas (nenhuma candidata
+// elegível), a tentativa pela identidade nova falha fechado — é tratada
+// como bloqueada também (`reservarTentativa` retorna `null`), em vez de
+// evictar qualquer um. Para o modelo de ameaça de um protótipo de chão de
+// loja, uma inundação grande o bastante para encher o teto inteiro só com
+// identidades genuinamente bloqueadas já é um ataque extremo e ruidoso, e
+// recusar identidades novas nessa condição é um resultado seguro (não uma
+// regressão de disponibilidade que importe aqui).
 
 import { randomUUID } from "node:crypto";
 
@@ -57,14 +76,12 @@ const tentativasPorIdentidade = new Map<string, Reserva[]>();
 // Remove do Map inteiro (não só da identidade consultada nesta chamada)
 // qualquer reserva mais velha que a janela, apagando a chave por completo
 // quando sua lista fica vazia — nunca deixa um array vazio "esquecido" no
-// Map. Depois, se o Map ainda exceder o teto rígido, evicta a identidade
-// dona da reserva mais antiga (a reserva mais antiga entre TODAS as
-// identidades), repetindo até voltar ao teto. Chamada no início de
-// `reservarTentativa`, então roda a cada tentativa de login em todo o
-// processo — O(tamanho do Map) por chamada, aceitável para a escala deste
-// protótipo (o teto acima garante que nunca cresce além de um tamanho
-// trivial de se varrer).
-function limparExpiradasEManterTeto(agora: number): void {
+// Map. Chamada no início de `reservarTentativa`, então roda a cada
+// tentativa de login em todo o processo — O(tamanho do Map) por chamada,
+// aceitável para a escala deste protótipo (o teto rígido, aplicado
+// separadamente em `liberarEspacoParaNovaIdentidade`, garante que o Map
+// nunca cresce além de um tamanho trivial de se varrer).
+function limparExpiradas(agora: number): void {
   for (const [identidade, historico] of tentativasPorIdentidade) {
     const restante = historico.filter((reserva) => agora - reserva.quando < JANELA_MS);
     if (restante.length === 0) {
@@ -73,18 +90,36 @@ function limparExpiradasEManterTeto(agora: number): void {
       tentativasPorIdentidade.set(identidade, restante);
     }
   }
+}
 
-  // `>=`, não `>`: esta função roda ANTES de `reservarTentativa` adicionar a
-  // entrada da chamada atual (que pode ser uma identidade nova, crescendo o
+// Abre espaço no Map para UMA identidade nova, evictando a identidade
+// NÃO BLOQUEADA com a reserva mais antiga — nunca uma já bloqueada (ver
+// nota de segurança no topo do arquivo: evictar uma identidade bloqueada
+// desbloquearia ela). Só é chamada quando a identidade sendo reservada
+// ainda não existe no Map (logo, vai genuinamente crescer o tamanho do
+// Map em 1) e o teto já foi atingido.
+//
+// Retorna `true` se conseguiu abrir espaço (ou o teto já não estava
+// atingido); `false` se o Map está cheio só de identidades bloqueadas —
+// nesse caso não há ninguém elegível para evictar, e o caller deve falhar
+// fechado (tratar a tentativa como bloqueada também, nunca evictar um
+// bloqueio alheio só para abrir espaço).
+function liberarEspacoParaNovaIdentidade(): boolean {
+  // `>=`, não `>`: esta função é chamada ANTES de `reservarTentativa`
+  // adicionar a entrada da chamada atual (uma identidade nova, crescendo o
   // Map em 1). Usar `>` permitiria o Map terminar a chamada em
-  // `LIMITE_MAPA_ENTRADAS + 1` (um a mais que o teto) toda vez que uma
-  // identidade nova for adicionada sob pressão — `>=` reserva espaço para
-  // essa adição, mantendo o teto exato após cada chamada.
+  // `LIMITE_MAPA_ENTRADAS + 1` (um a mais que o teto) — `>=` reserva espaço
+  // para essa adição, mantendo o teto exato após cada chamada.
   while (tentativasPorIdentidade.size >= LIMITE_MAPA_ENTRADAS) {
     let identidadeMaisAntiga: string | undefined;
     let quandoMaisAntigo = Number.POSITIVE_INFINITY;
 
     for (const [identidade, historico] of tentativasPorIdentidade) {
+      if (historico.length >= LIMITE_TENTATIVAS) {
+        // Bloqueada: nunca é candidata a eviction (ver nota de segurança
+        // no topo do arquivo).
+        continue;
+      }
       for (const reserva of historico) {
         if (reserva.quando < quandoMaisAntigo) {
           quandoMaisAntigo = reserva.quando;
@@ -94,14 +129,16 @@ function limparExpiradasEManterTeto(agora: number): void {
     }
 
     if (identidadeMaisAntiga === undefined) {
-      // Não deveria acontecer (toda identidade no Map tem ao menos uma
-      // reserva, por construção), mas evita um loop infinito em qualquer
-      // estado inesperado.
-      break;
+      // Nenhuma identidade elegível (não bloqueada) para evictar — o Map
+      // está cheio só de identidades já bloqueadas. Falha fechado: não
+      // conseguimos abrir espaço.
+      return false;
     }
 
     tentativasPorIdentidade.delete(identidadeMaisAntiga);
   }
+
+  return true;
 }
 
 // Verifica bloqueio e já reserva a tentativa em uma única chamada síncrona
@@ -122,12 +159,24 @@ function limparExpiradasEManterTeto(agora: number): void {
 // para a mesma identidade se intercalam — ver `desfazerTentativa`.
 export function reservarTentativa(identidade: string): string | null {
   const agora = Date.now();
-  limparExpiradasEManterTeto(agora);
+  limparExpiradas(agora);
 
-  const historico = tentativasPorIdentidade.get(identidade) ?? [];
+  const existente = tentativasPorIdentidade.get(identidade);
+  const historico = existente ?? [];
+
   if (historico.length >= LIMITE_TENTATIVAS) {
     return null;
   }
+
+  // Só precisa abrir espaço se esta identidade for NOVA no Map (uma
+  // identidade já existente só ganha mais um item no próprio array, o
+  // tamanho do Map não muda). Se o Map estiver cheio só de identidades
+  // bloqueadas, falha fechado — esta tentativa também é recusada, nunca
+  // evictamos um bloqueio alheio para abrir espaço.
+  if (existente === undefined && !liberarEspacoParaNovaIdentidade()) {
+    return null;
+  }
+
   const reserva: Reserva = { quando: agora, id: randomUUID() };
   historico.push(reserva);
   tentativasPorIdentidade.set(identidade, historico);
@@ -150,7 +199,7 @@ export function reservarTentativa(identidade: string): string | null {
 //
 // Apaga a chave do Map por completo se a lista resultante ficar vazia (não
 // deixa um array `[]` esquecido ali — mesma disciplina de
-// `limparExpiradasEManterTeto`).
+// `limparExpiradas`).
 export function desfazerTentativa(identidade: string, idDaReserva: string): void {
   const historico = tentativasPorIdentidade.get(identidade);
   if (!historico || historico.length === 0) {

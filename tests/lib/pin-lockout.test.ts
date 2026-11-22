@@ -155,4 +155,77 @@ describe("pin-lockout: limpeza e teto do Map (defesa contra crescimento sem limi
     },
     20000,
   );
+
+  // CORREÇÃO DE SEGURANÇA (apontada por review automatizado sobre a
+  // primeira versão do teto/eviction acima): evictar "a reserva mais
+  // antiga do Map inteiro" sem checar se essa identidade já está BLOQUEADA
+  // abria uma forma de um atacante já bloqueado se desbloquear sozinho —
+  // bastava inundar o Map com identidades novas e descartáveis até o teto
+  // forçar uma eviction, e se a identidade evictada fosse a do próprio
+  // atacante (já bloqueada, portanto "antiga" o bastante para ser
+  // escolhida), seu bloqueio sumia e ele podia recomeçar. Este teste cobre
+  // as duas metades da correção: (1) havendo uma identidade NÃO bloqueada
+  // elegível, é ela que é evictada para abrir espaço — nunca uma
+  // bloqueada; (2) se o Map estiver no teto só com identidades bloqueadas
+  // (nenhuma candidata elegível), a tentativa pela identidade nova falha
+  // fechado (recusada, igual a um bloqueio normal) em vez de evictar
+  // qualquer uma delas.
+  it(
+    "eviction só considera identidades não bloqueadas; mapa cheio só de bloqueadas falha fechado",
+    () => {
+      __limparTudoParaTestes();
+      const TETO_MAPA = 5000;
+
+      // Uma única identidade NÃO bloqueada (1 reserva), criada primeiro —
+      // é a mais antiga de todas as reservas no Map, candidata "correta"
+      // para eviction.
+      const identidadeNaoBloqueada = "pin-lockout-teste-nao-bloqueada";
+      reservarTentativa(identidadeNaoBloqueada);
+
+      // Preenche o restante do teto com identidades BLOQUEADAS (5 reservas
+      // cada) — todas criadas depois da não bloqueada acima.
+      for (let i = 0; i < TETO_MAPA - 1; i++) {
+        const identidade = `pin-lockout-teste-bloqueada-${i}`;
+        for (let j = 0; j < 5; j++) {
+          reservarTentativa(identidade);
+        }
+      }
+
+      expect(__tamanhoMapaParaTestes()).toBe(TETO_MAPA);
+
+      // Parte 1: há uma candidata elegível (a não bloqueada) — a
+      // identidade nova consegue reservar.
+      const resultadoComEspaco = reservarTentativa("pin-lockout-teste-nova-1");
+      expect(resultadoComEspaco).not.toBeNull();
+      expect(__tamanhoMapaParaTestes()).toBe(TETO_MAPA);
+
+      // Prova de que foi a NÃO bloqueada (nunca uma bloqueada) que saiu:
+      // reservar de novo para ela tem sucesso como se fosse uma identidade
+      // nova (contagem zerada pela eviction, não "já tinha 1 reserva
+      // sobrevivente").
+      for (let j = 0; j < 5; j++) {
+        expect(reservarTentativa(identidadeNaoBloqueada)).not.toBeNull();
+      }
+      // 6ª: bloqueada de novo, mas por um bloqueio FRESCO (contado a
+      // partir de agora), não por nada que tivesse sobrevivido à eviction.
+      expect(reservarTentativa(identidadeNaoBloqueada)).toBeNull();
+
+      // Bloqueia "pin-lockout-teste-nova-1" também (só tinha 1 reserva) —
+      // agora TODAS as identidades no Map estão bloqueadas, sem nenhuma
+      // candidata elegível para uma próxima eviction.
+      for (let j = 0; j < 4; j++) {
+        reservarTentativa("pin-lockout-teste-nova-1");
+      }
+      expect(__tamanhoMapaParaTestes()).toBe(TETO_MAPA);
+
+      // Parte 2: Map no teto, só com identidades bloqueadas. Falha
+      // fechado: a tentativa pela identidade nova é recusada, e o Map
+      // continua exatamente do mesmo tamanho — ninguém foi evictado só
+      // para abrir espaço.
+      const resultadoSemEspaco = reservarTentativa("pin-lockout-teste-nova-2-sem-espaco");
+      expect(resultadoSemEspaco).toBeNull();
+      expect(__tamanhoMapaParaTestes()).toBe(TETO_MAPA);
+    },
+    120000,
+  );
 });
