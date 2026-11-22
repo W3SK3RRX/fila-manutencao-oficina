@@ -42,7 +42,7 @@ export function LinhaOsExpandivel({ os, posicao, destacada }: LinhaOsExpandivelP
         aria-expanded={aberta}
         className={cn(
           "cursor-pointer border-b border-border/60 text-sm transition-colors hover:bg-muted/50",
-          destacada && "bg-emerald-50 dark:bg-emerald-950/40",
+          destacada && "bg-primary/10",
         )}
       >
         <td className="px-2 py-2 tabular-nums text-muted-foreground">{posicao}</td>

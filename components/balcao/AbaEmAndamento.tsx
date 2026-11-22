@@ -67,7 +67,7 @@ export function AbaEmAndamento() {
                 <td className="px-2 py-2">{os.modeloMoto as string}</td>
                 <td className="px-2 py-2">{(os.mecanicoNome as string | null) ?? "—"}</td>
                 <td className="px-2 py-2">
-                  <Badge variant={pausada ? "secondary" : "default"}>
+                  <Badge variant={pausada ? "warning" : "default"}>
                     {pausada ? "Pausada" : "Em execução"}
                   </Badge>
                 </td>

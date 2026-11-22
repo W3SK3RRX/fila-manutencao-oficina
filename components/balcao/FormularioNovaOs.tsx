@@ -227,7 +227,7 @@ export function FormularioNovaOs({ onOsCriada }: FormularioNovaOsProps = {}) {
       </div>
 
       {erroEnvio && <p className="text-sm text-destructive">{erroEnvio}</p>}
-      {sucesso && <p className="text-sm text-emerald-600 dark:text-emerald-400">{sucesso}</p>}
+      {sucesso && <p className="text-sm text-success">{sucesso}</p>}
 
       <Button type="submit" disabled={isSubmitting} className="self-start">
         Criar OS

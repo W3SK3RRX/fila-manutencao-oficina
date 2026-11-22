@@ -36,13 +36,13 @@ export function IndicadorConexao() {
       role="status"
       className={cn(
         "inline-flex items-center gap-1.5 text-xs font-medium",
-        conectado ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
+        conectado ? "text-success" : "text-destructive",
       )}
     >
       <span
         className={cn(
           "h-2 w-2 rounded-full",
-          conectado ? "bg-emerald-500" : "bg-destructive",
+          conectado ? "bg-success" : "bg-destructive",
         )}
       />
       {conectado ? "Conectado" : "Sem conexão — a fila pode estar desatualizada"}
