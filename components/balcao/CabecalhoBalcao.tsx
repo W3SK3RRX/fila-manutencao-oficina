@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "cn";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 
@@ -32,9 +35,30 @@ export function CabecalhoBalcao() {
           </span>
         </div>
       </div>
+      <nav className="flex flex-wrap items-center gap-1">
+        <LinkNav href="/balcao" label="Home" />
+        <LinkNav href="/balcao/abrir" label="Abrir OS" />
+        <LinkNav href="/balcao/fila" label="Fila de OS" />
+      </nav>
       <Button type="button" variant="outline" size="sm" onClick={aoSair}>
         Sair
       </Button>
     </div>
+  );
+}
+
+function LinkNav({ href, label }: { href: string; label: string }) {
+  const pathname = usePathname();
+  const ativo = pathname === href;
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+        ativo ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {label}
+    </Link>
   );
 }
