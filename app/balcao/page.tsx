@@ -23,7 +23,7 @@ export default function PaginaBalcao() {
   const [osRecemCriadaId, setOsRecemCriadaId] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-1 flex-col gap-4 bg-zinc-50 p-4 dark:bg-black">
+    <div className="flex flex-1 flex-col gap-4 bg-background p-4">
       <CabecalhoBalcao />
       <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>

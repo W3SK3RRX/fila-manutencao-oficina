@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/mecanico",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#fafafa",
-    theme_color: "#18181b",
+    background_color: "#0B0B0D",
+    theme_color: "#0B0B0D",
     icons: [
       {
         src: "/icons/icon-192.png",

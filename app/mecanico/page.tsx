@@ -27,7 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // a spec ("Topo: nome do mecânico e indicador de conexão").
 export default function PaginaMecanico() {
   return (
-    <div className="flex flex-1 items-start justify-center bg-zinc-50 px-4 py-8 dark:bg-black">
+    <div className="flex flex-1 items-start justify-center bg-background px-4 py-8">
       <div className="flex w-full max-w-sm flex-col gap-4">
         <CabecalhoMecanico />
 

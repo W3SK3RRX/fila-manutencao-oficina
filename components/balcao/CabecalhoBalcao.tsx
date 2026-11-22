@@ -20,7 +20,18 @@ export function CabecalhoBalcao() {
   }
 
   return (
-    <div className="flex justify-end">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <img src="/logo.jpg" alt="Moto & Mais" className="size-10 rounded-lg object-cover" />
+        <div className="flex flex-col leading-tight">
+          <span className="font-heading text-lg font-bold tracking-wide">
+            MOTO <span className="text-primary">&amp;</span> MAIS
+          </span>
+          <span className="text-[11px] font-semibold tracking-widest text-muted-foreground uppercase">
+            Painel do Balcão
+          </span>
+        </div>
+      </div>
       <Button type="button" variant="outline" size="sm" onClick={aoSair}>
         Sair
       </Button>
