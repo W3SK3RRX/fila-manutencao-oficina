@@ -1,0 +1,60 @@
+# Compose override for this project's actual VPS: a shared server that
+# already runs a single host-network Traefik instance (traefik-iskv) in
+# front of every app under *.infinityforge.com.br (see the other projects'
+# docker-compose.yml files for the identical label pattern). That Traefik
+# already owns host ports 80/443, so unlike the generic docker-compose.yml
+# (which fronts itself with its own Caddy for a dedicated host), this file
+# has no reverse-proxy service of its own: `app` is only `expose`d on the
+# project's internal bridge network, and Traefik discovers/routes to it via
+# labels (the Docker socket it already watches) plus the fixed project name
+# below, which pins the network name Traefik needs to disambiguate.
+#
+# Deploy with: docker compose -f docker-compose.vps.yml up -d --build
+name: motomais
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-motomais}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your .env file}
+      POSTGRES_DB: motomais
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-motomais} -d motomais"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-motomais}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your .env file}@db:5432/motomais?schema=public
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your .env file}
+      BALCAO_SENHA: ${BALCAO_SENHA:?set BALCAO_SENHA in your .env file}
+      APP_URL: ${APP_URL:-https://motomais.infinityforge.com.br}
+      TZ: ${TZ:-America/Fortaleza}
+    expose:
+      - "3000"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: motomais_default
+      traefik.http.routers.motomais.rule: Host(`motomais.infinityforge.com.br`)
+      traefik.http.routers.motomais.entrypoints: websecure
+      traefik.http.routers.motomais.tls: "true"
+      traefik.http.routers.motomais.tls.certresolver: letsencrypt
+      traefik.http.services.motomais.loadbalancer.server.port: "3000"
+
+volumes:
+  db-data:
