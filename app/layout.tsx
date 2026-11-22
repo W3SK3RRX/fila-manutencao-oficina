@@ -28,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
-      className={`${inter.variable} ${oswald.variable} h-full antialiased`}
+      className={`${inter.variable} ${oswald.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/* Service worker (Task 33): registra apenas em produção. O gate
