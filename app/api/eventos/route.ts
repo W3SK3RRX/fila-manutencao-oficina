@@ -6,7 +6,14 @@ import { getListener } from "@/lib/pg-listener";
 // Delay fixo entre heartbeats SSE. Mantém a conexão viva através de proxies
 // que fecham conexões HTTP ociosas; não precisa ser configurável — este é um
 // protótipo (Marco 6), não um serviço com múltiplos ambientes/latências.
-const HEARTBEAT_MS = 25000;
+//
+// Encurtado de 25s para 10s na revisão final de branch (finding I1):
+// hooks/useConexao.ts considera a conexão "caída" depois de 15s sem nenhum
+// sinal de sucesso. Antes deste heartbeat virar um evento nomeado (ver
+// abaixo), isso não importava — agora que ele alimenta o indicador de
+// conexão, precisa ser confortavelmente menor que a janela de 15s (folga de
+// ~1 heartbeat perdido antes do indicador acender vermelho).
+const HEARTBEAT_MS = 10000;
 
 // GET /api/eventos — stream SSE (`text/event-stream`) de mudanças em
 // ordens_servico, alimentado pelo singleton de LISTEN/NOTIFY de
@@ -57,7 +64,16 @@ export async function GET(request: NextRequest) {
 
       heartbeat = setInterval(() => {
         try {
-          controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+          // Evento SSE nomeado ("event: heartbeat"), não um comentário
+          // (`: heartbeat`, formato usado antes da revisão final de branch):
+          // um comentário SSE nunca dispara `onmessage` no EventSource do
+          // cliente (só linhas `data:` sem `event:` fazem isso), então
+          // hooks/useEventosSSE.ts não tinha como saber que o heartbeat
+          // chegou — o sinal de vida existia só no nível TCP/HTTP, invisível
+          // para hooks/useConexao.ts (finding I1). Um evento nomeado permite
+          // `eventSource.addEventListener("heartbeat", ...)` no cliente sem
+          // afetar o listener `onmessage` usado para mudanças reais de OS.
+          controller.enqueue(encoder.encode(`event: heartbeat\ndata: {}\n\n`));
         } catch {
           // Mesmo cenário acima, mas aqui dentro de um setInterval bruto:
           // sem este try/catch, o próximo tick lançaria

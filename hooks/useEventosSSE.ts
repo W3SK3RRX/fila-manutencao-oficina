@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { registrarSucessoConexao } from "@/hooks/useConexao";
 
 // Backoff com teto para reconexão do EventSource: o EventSource nativo já
 // reconecta sozinho em qualquer erro (por padrão a cada ~3s, ou no intervalo
@@ -45,12 +46,23 @@ export function useEventosSSE() {
 
       eventSource.onopen = () => {
         falhasRef.current = 0;
+        registrarSucessoConexao();
       };
 
       eventSource.onmessage = () => {
+        registrarSucessoConexao();
         queryClient.invalidateQueries({ queryKey: ["fila"] });
         queryClient.invalidateQueries({ queryKey: ["mecanico-atual"] });
       };
+
+      // Heartbeat (I1 da revisão final de branch): evento nomeado enviado a
+      // cada 10s por app/api/eventos/route.ts só para provar que a conexão
+      // segue viva — não representa nenhuma mudança de OS, então não deve
+      // invalidar ["fila"]/["mecanico-atual"] como `onmessage` faz. Alimenta
+      // só o indicador de conexão (hooks/useConexao.ts).
+      eventSource.addEventListener("heartbeat", () => {
+        registrarSucessoConexao();
+      });
 
       eventSource.onerror = () => {
         // onerror dispara tanto para uma falha transitória (que o
