@@ -71,6 +71,10 @@
   --border: #2B2A2F;
   --input: #3A3940;
   --ring: #F0671A;
+  --chart-status-queue: #3987e5;
+  --chart-status-running: #e65c0f;
+  --chart-status-done: #239f72;
+  --chart-status-paused: #ad8500;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -109,6 +113,10 @@
   --border: #2B2A2F;
   --input: #3A3940;
   --ring: #F0671A;
+  --chart-status-queue: #3987e5;
+  --chart-status-running: #e65c0f;
+  --chart-status-done: #239f72;
+  --chart-status-paused: #ad8500;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
