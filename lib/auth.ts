@@ -1,11 +1,32 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 // JWT de sessão (jose + HS256), guardado em cookie httpOnly. Sem NextAuth.
 // Dois perfis possíveis: balcão (sessão curta, sem identificação de usuário)
 // e mecânico (sessão longa, identificada por mecanicoId).
 
 export const NOME_COOKIE_SESSAO = "sessao";
+
+// Comparação em tempo constante para segredos compartilhados comparados
+// diretamente em texto puro (hoje só BALCAO_SENHA — PINs de mecânico já são
+// comparados via `bcrypt.compare`, que é constant-time por construção).
+// Revisão final de branch (I5, rodada de correção de segurança apontada por
+// review automatizado, Task 12 já tinha isso como gap de baixa prioridade):
+// `dados.data.senha !== process.env.BALCAO_SENHA` compara strings
+// JavaScript que fazem short-circuit no primeiro caractere diferente —
+// teoricamente permite um ataque de timing para descobrir a senha
+// caractere a caractere. `crypto.timingSafeEqual` exige buffers do MESMO
+// TAMANHO ou lança — em vez de preencher as strings originais (complexidade
+// extra e ainda vaza o tamanho pelo preenchimento), fazemos hash SHA-256 de
+// cada lado primeiro: o digest tem sempre 32 bytes fixos independente do
+// tamanho da entrada, então nunca lança, e a comparação dos digests em
+// tempo constante não vaza nada sobre onde as strings originais divergem.
+export function compararComTempoConstante(a: string, b: string): boolean {
+  const hashA = createHash("sha256").update(a, "utf8").digest();
+  const hashB = createHash("sha256").update(b, "utf8").digest();
+  return timingSafeEqual(hashA, hashB);
+}
 
 // Exportadas para que route handlers que gravem o cookie diretamente via
 // NextResponse.cookies (em vez de gravarCookieSessao) usem o mesmo maxAge.

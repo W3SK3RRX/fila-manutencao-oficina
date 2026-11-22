@@ -203,6 +203,51 @@ describe("POST /api/auth/balcao", () => {
     }
     __resetTentativasParaTestes(`balcao:ip:${ipNovo}`);
   });
+
+  // CORREÇÃO DE SEGURANÇA pós-fix-wave, 3ª rodada (apontada por review
+  // automatizado): bloqueio por endereço IPv6 completo deixaria um único
+  // /64 (uma única alocação, de graça e trivial de variar para quem a
+  // possui) parecer "muitos atacantes diferentes" para o limitador. A rota
+  // agrupa IPv6 pelos 4 primeiros grupos (prefixo /64) em vez do endereço
+  // completo — este teste prova as duas metades dessa garantia: dois
+  // endereços no MESMO /64 compartilham o bloqueio, e um endereço de um
+  // /64 DIFERENTE não é afetado.
+  it("agrupa IPv6 pelo prefixo /64: mesmo /64 compartilha bloqueio, /64 diferente não é afetado", async () => {
+    const { POST } = await import("@/app/api/auth/balcao/route");
+    const tentar = async (senha: string, ip: string) => {
+      const request = new Request("http://localhost/api/auth/balcao", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": ip },
+        body: JSON.stringify({ senha }),
+      });
+      return POST(request as never);
+    };
+
+    const enderecoA = "2001:db8:1234:5678::1";
+    const enderecoB = "2001:db8:1234:5678::2"; // mesmo /64 de enderecoA
+    const foraDoBloco = "2001:db8:1234:9999::1"; // /64 diferente
+
+    // 5 tentativas erradas alternando entre A e B — se o agrupamento por
+    // /64 funcionar, elas contam para o MESMO bucket.
+    for (let i = 0; i < 5; i++) {
+      const ip = i % 2 === 0 ? enderecoA : enderecoB;
+      const resposta = await tentar("senha-errada-com-certeza", ip);
+      expect(resposta.status).toBe(401);
+    }
+
+    // 6ª tentativa, com a senha CORRETA, vinda de B: deve ser bloqueada —
+    // só é explicável se A e B compartilham o bucket /64.
+    const bloqueada = await tentar(SENHA_BALCAO_CORRETA, enderecoB);
+    expect(bloqueada.status).toBe(429);
+
+    // Um endereço de um /64 diferente não foi tocado pelas tentativas
+    // acima — login com a senha correta continua funcionando normalmente.
+    const ok = await tentar(SENHA_BALCAO_CORRETA, foraDoBloco);
+    expect(ok.status).toBe(200);
+
+    __resetTentativasParaTestes("balcao:ip:2001:db8:1234:5678");
+    __resetTentativasParaTestes("balcao:ip:2001:db8:1234:9999");
+  });
 });
 
 describe("POST /api/auth/mecanico", () => {

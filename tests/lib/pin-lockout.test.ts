@@ -1,6 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { reservarTentativa, desfazerTentativa } from "@/lib/pin-lockout";
+import {
+  reservarTentativa,
+  desfazerTentativa,
+  __tamanhoMapaParaTestes,
+  __limparTudoParaTestes,
+} from "@/lib/pin-lockout";
 
 // Prova direta de que `desfazerTentativa` identifica a reserva por id, e não
 // por posição no array (o bug do round anterior: `pop()` removia o que
@@ -83,4 +88,71 @@ describe("pin-lockout: identidade de reserva (reservarTentativa/desfazerTentativ
     // que já cobre a contagem exata).
     expect(() => desfazerTentativa(mecanicoId, "outro-id-invalido")).not.toThrow();
   });
+});
+
+// I5 (revisão final de branch, rodada de correção de segurança apontada por
+// review automatizado): generalizar este módulo de "por mecânico" para "por
+// identidade" (para a rota do balcão usar uma identidade por IP) introduziu
+// uma população de identidades potencialmente muito maior e fora do
+// controle da aplicação — sem limpeza, cada identidade nova (ex.: um
+// atacante variando de IP) deixava uma entrada no Map para sempre, mesmo
+// depois de expirada (DoS de memória). Estes testes provam o cleanup
+// descrito em lib/pin-lockout.ts: entradas totalmente expiradas são
+// removidas do Map (não só ignoradas por filtro) assim que QUALQUER
+// tentativa nova é processada, e um teto rígido evita crescimento sem fim
+// mesmo antes da janela de 10min expirar.
+describe("pin-lockout: limpeza e teto do Map (defesa contra crescimento sem limite)", () => {
+  it("remove do Map uma identidade totalmente expirada ao processar qualquer nova tentativa", () => {
+    vi.useFakeTimers();
+    try {
+      // Parte de um Map vazio conhecido: sem isso, `vi.advanceTimersByTime`
+      // abaixo expiraria TAMBÉM qualquer entrada deixada por outros testes
+      // deste arquivo (todas criadas em "tempo real" essencialmente igual
+      // ao início deste, bem dentro dos 11 minutos avançados), tornando o
+      // tamanho esperado depois dependente da ordem de execução dos testes
+      // em vez do comportamento sob teste.
+      __limparTudoParaTestes();
+
+      const identidadeAntiga = randomUUID();
+      reservarTentativa(identidadeAntiga);
+      expect(__tamanhoMapaParaTestes()).toBe(1);
+
+      // Avança além da janela de 10min — a reserva de `identidadeAntiga`
+      // fica totalmente expirada.
+      vi.advanceTimersByTime(11 * 60 * 1000);
+
+      // Processa uma tentativa para uma identidade TOTALMENTE DIFERENTE —
+      // a limpeza roda sobre o Map inteiro a cada chamada, não só sobre a
+      // identidade consultada.
+      const identidadeNova = randomUUID();
+      reservarTentativa(identidadeNova);
+
+      // Só `identidadeNova` deve sobrar: `identidadeAntiga`, totalmente
+      // expirada, foi removida do Map (não só ignorada por filtro). Sem o
+      // cleanup, o tamanho seria 2 (as duas entradas coexistindo).
+      expect(__tamanhoMapaParaTestes()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it(
+    "nunca deixa o Map crescer além do teto rígido, mesmo sem nenhuma entrada expirar",
+    () => {
+      // 5000 é o teto configurado em lib/pin-lockout.ts
+      // (LIMITE_MAPA_ENTRADAS) — não exportado (é um detalhe interno), então
+      // repetido aqui como o contrato observável deste módulo. Sem avançar
+      // o relógio (nada expira por tempo): só o teto rígido explica o Map
+      // não crescer ilimitadamente.
+      const TETO_MAPA = 5000;
+      const QUANTIDADE_ALEM_DO_TETO = 200;
+
+      for (let i = 0; i < TETO_MAPA + QUANTIDADE_ALEM_DO_TETO; i++) {
+        reservarTentativa(`identidade-teste-teto-${i}`);
+      }
+
+      expect(__tamanhoMapaParaTestes()).toBeLessThanOrEqual(TETO_MAPA);
+    },
+    20000,
+  );
 });

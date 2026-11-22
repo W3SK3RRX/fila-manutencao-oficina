@@ -86,6 +86,21 @@ describe("instrumentation.register (guard de BALCAO_SENHA em produção)", () =>
     expect(() => register()).toThrow(/BALCAO_SENHA/);
   });
 
+  // Design final (3ª rodada de correção de segurança): o bloqueio por IP
+  // sozinho não impede força bruta verdadeiramente distribuída — quem faz
+  // esse trabalho é a própria senha, por isso um tamanho mínimo real (6),
+  // não só a checagem do valor de exemplo literal "0000" (que também
+  // passaria nesse teste, mas por um motivo diferente — este teste prova
+  // especificamente a checagem de TAMANHO, com uma senha curta que NÃO é o
+  // valor de exemplo).
+  it("em produção, lança se BALCAO_SENHA tiver menos de 6 caracteres (mesmo que diferente do exemplo)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("JWT_SECRET", JWT_SECRET_VALIDO);
+    vi.stubEnv("BALCAO_SENHA", "ab12");
+
+    expect(() => register()).toThrow(/BALCAO_SENHA/);
+  });
+
   it("em produção, não lança com uma senha diferente do valor de exemplo", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("JWT_SECRET", JWT_SECRET_VALIDO);

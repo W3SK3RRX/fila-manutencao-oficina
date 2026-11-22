@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { loginBalcaoSchema } from "@/lib/schemas";
-import { assinarSessaoBalcao, NOME_COOKIE_SESSAO, DURACAO_SESSAO_BALCAO_SEGUNDOS } from "@/lib/auth";
+import {
+  assinarSessaoBalcao,
+  compararComTempoConstante,
+  NOME_COOKIE_SESSAO,
+  DURACAO_SESSAO_BALCAO_SEGUNDOS,
+} from "@/lib/auth";
 import { reservarTentativa, desfazerTentativa } from "@/lib/pin-lockout";
 
 // I5 (revisão final de branch): diferente da rota de PIN do mecânico
@@ -13,22 +18,62 @@ import { reservarTentativa, desfazerTentativa } from "@/lib/pin-lockout";
 // desfaz a reserva só em caso de sucesso.
 //
 // CORREÇÃO DE SEGURANÇA pós-fix-wave (apontada por review automatizado, em
-// duas rodadas):
-// 1ª rodada: a primeira versão deste fix usava uma única identidade
-// CONSTANTE para todas as tentativas (só existe uma senha de balcão, não
-// por usuário) — isso é um DoS trivial e não autenticado: qualquer um na
-// internet podia mandar 5 senhas erradas de QUALQUER IP e travar o balcão
-// de verdade pela janela inteira, mesmo sem nunca ter a senha certa. Fix:
-// identidade por IP do cliente (`obterIdentidadeCliente` abaixo) — um
-// atacante de um único IP ainda é bloqueado, mas não afeta o balcão de
-// verdade tentando de outro IP.
-// 2ª rodada: a correção acima ainda tinha, ADICIONALMENTE, um bucket GLOBAL
-// de "defesa em profundidade" com um teto mais alto — mas um bucket global
-// que bloqueia com 429 mesmo quando a senha está CORRETA é a mesma classe de
-// bug, só exigindo um atacante distribuído por mais IPs em vez de um único.
-// Removido inteiramente: não existe nenhum caminho nesta rota em que uma
-// senha correta, vinda de um IP que não está ele mesmo bloqueado, deixe de
-// autenticar.
+// três rodadas — design final convergido na 3ª):
+// 1ª rodada: a primeira versão usava uma única identidade CONSTANTE para
+// todas as tentativas — DoS trivial e não autenticado (qualquer IP podia
+// travar o balcão de verdade). Fix: identidade por IP do cliente.
+// 2ª rodada: um bucket GLOBAL "de defesa em profundidade" adicional
+// bloqueava com 429 mesmo com a senha CORRETA — mesma classe de bug, só
+// exigindo um atacante distribuído. Removido por completo.
+// 3ª rodada (design final): bloqueio por IP sozinho ainda é fraco contra um
+// atacante que roda por muitos IPs — endereços dentro de um único /64 de
+// IPv6 são de graça e triviais de variar, então um IP "puro" (endereço
+// completo) deixaria cada /64 inteiro se passar por "muitos atacantes
+// diferentes" para fins deste bloqueio. Respostas:
+//   a. Nenhum limitador de tentativas sozinho impede força bruta
+//      verdadeiramente distribuída — quem faz esse trabalho de verdade é a
+//      própria senha: `instrumentation.ts` agora recusa iniciar o servidor
+//      em produção se BALCAO_SENHA for curta (<6) ou o valor de exemplo
+//      (0000), e infra/deploy.md documenta que a senha real deve ser mais
+//      longa que um PIN de 4 dígitos, precisamente porque este login não
+//      tem bloqueio por identidade de usuário (só existe uma senha,
+//      compartilhada). O bloqueio por IP aqui é só uma camada adicional
+//      contra um atacante de IP único/pequeno, nunca a defesa primária.
+//   b. Endereços IPv6 são agrupados pelo prefixo /64 (ver
+//      `obterChaveIp` abaixo) em vez do endereço completo — não elimina a
+//      rotação de IP como vetor, mas não deixa um único /64 (uma única
+//      alocação, de graça para quem a possui) parecer "muitos atacantes".
+function obterChaveIp(ip: string): string {
+  if (!ip.includes(":")) {
+    // IPv4: usa o endereço completo como está.
+    return ip;
+  }
+
+  // IPv6: agrupa pelo prefixo /64 (os 4 primeiros grupos de 16 bits) em vez
+  // do endereço completo — um único /64 é uma alocação só, de graça e
+  // trivial de variar para quem a possui, então bloquear por endereço
+  // completo deixaria um atacante nesse cenário parecer "muitos IPs
+  // diferentes" para o limitador.
+  const semZona = ip.split("%")[0]; // remove zone id (ex.: "%eth0"), se houver
+  let grupos: string[];
+
+  if (semZona.includes("::")) {
+    // "::" abrevia um ou mais grupos de zeros consecutivos — precisa
+    // expandir para 8 grupos completos antes de truncar para os 4
+    // primeiros, senão um endereço como "::1" (split ingênuo por ":")
+    // daria os grupos errados.
+    const [esquerda, direita] = semZona.split("::");
+    const gruposEsquerda = esquerda ? esquerda.split(":") : [];
+    const gruposDireita = direita ? direita.split(":") : [];
+    const faltando = Math.max(8 - gruposEsquerda.length - gruposDireita.length, 0);
+    grupos = [...gruposEsquerda, ...Array(faltando).fill("0"), ...gruposDireita];
+  } else {
+    grupos = semZona.split(":");
+  }
+
+  return grupos.slice(0, 4).join(":");
+}
+
 function obterIdentidadeCliente(request: Request): string {
   // Em produção, `docker-compose.yml` só expõe `app` para a rede interna do
   // Docker — quem fala com ele é sempre o `caddy` do próprio compose (nunca
@@ -49,7 +94,7 @@ function obterIdentidadeCliente(request: Request): string {
   const segmentos = encaminhado?.split(",").map((parte) => parte.trim()).filter(Boolean);
   const ipConfiavel = segmentos?.at(-1);
 
-  return ipConfiavel ? `balcao:ip:${ipConfiavel}` : "balcao:ip:desconhecido";
+  return ipConfiavel ? `balcao:ip:${obterChaveIp(ipConfiavel)}` : "balcao:ip:desconhecido";
 }
 
 // Nota sobre cookies: este handler grava o cookie de sessão via
@@ -81,7 +126,12 @@ export async function POST(request: Request) {
     );
   }
 
-  if (dados.data.senha !== process.env.BALCAO_SENHA) {
+  // Comparação em tempo constante (lib/auth.ts), não `!==`: uma senha
+  // comparada caractere a caractere com short-circuit é teoricamente
+  // vulnerável a um ataque de timing (Task 12 já apontava isso como gap de
+  // baixa prioridade; fechado aqui como parte da rodada de correção de
+  // segurança deste fix wave).
+  if (!compararComTempoConstante(dados.data.senha, process.env.BALCAO_SENHA ?? "")) {
     return NextResponse.json({ erro: "Senha inválida", codigo: "SENHA_INVALIDA" }, { status: 401 });
   }
 

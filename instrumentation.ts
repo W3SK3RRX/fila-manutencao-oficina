@@ -27,22 +27,27 @@ export function register(): void {
     );
   }
 
-  // BALCAO_SENHA (correção de segurança pós-fix-wave, apontada junto com o
-  // finding de DoS do limitador de tentativas — ver
-  // app/api/auth/balcao/route.ts): o limitador de tentativas torna a força
-  // bruta cara em tempo, mas não impede alguém de simplesmente digitar
-  // "0000" (o valor de exemplo de .env.example) na primeira tentativa. Não
-  // exigimos um tamanho mínimo maior (a spec quer um PIN curto, digitado num
-  // teclado numérico na tela) — só recusamos iniciar se ainda for,
-  // literalmente, o valor de exemplo.
+  // BALCAO_SENHA (correção de segurança pós-fix-wave, design final
+  // convergido na 3ª rodada de review automatizado): o limitador de
+  // tentativas por IP (app/api/auth/balcao/route.ts) sozinho não impede
+  // força bruta verdadeiramente distribuída (um atacante rodando por muitos
+  // IPs nunca esgota o limite de nenhum IP individual) — quem faz esse
+  // trabalho de verdade é a própria senha. Por isso exigimos um tamanho
+  // mínimo real aqui (6, não um PIN de 4 dígitos), documentado em
+  // infra/deploy.md: a senha do balcão em produção precisa ser mais longa
+  // que um PIN, precisamente porque este login não tem bloqueio por
+  // identidade de usuário (só existe uma senha, compartilhada por todo
+  // mundo que usa o balcão).
   const senhaBalcao = process.env.BALCAO_SENHA ?? "";
   const SENHA_EXEMPLO = "0000";
+  const TAMANHO_MINIMO_SENHA = 6;
 
-  if (senhaBalcao === "" || senhaBalcao === SENHA_EXEMPLO) {
+  if (senhaBalcao.length < TAMANHO_MINIMO_SENHA || senhaBalcao === SENHA_EXEMPLO) {
     throw new Error(
-      "BALCAO_SENHA inválida para produção: não pode ficar vazia nem ser o " +
-        "valor de exemplo (0000) de .env.example. Defina uma senha real antes " +
-        "de implantar.",
+      "BALCAO_SENHA inválida para produção: precisa ter pelo menos " +
+        `${TAMANHO_MINIMO_SENHA} caracteres e não pode ser o valor de exemplo ` +
+        "(0000) de .env.example. Defina uma senha real, mais longa que um PIN, " +
+        "antes de implantar — ver infra/deploy.md.",
     );
   }
 }
