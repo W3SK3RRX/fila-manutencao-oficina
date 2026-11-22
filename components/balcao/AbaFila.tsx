@@ -1,21 +1,21 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useFila } from "@/hooks/useFila";
 import { LinhaOsExpandivel } from "@/components/balcao/LinhaOsExpandivel";
-
-interface AbaFilaProps {
-  // Id da OS recém-criada pelo formulário à esquerda (ver
-  // FormularioNovaOs.tsx's onOsCriada), usado só para destacar visualmente
-  // a linha correspondente quando ela aparecer aqui. Estado é elevado e
-  // mantido em app/balcao/page.tsx, não nesta aba.
-  osRecemCriadaId?: string | null;
-}
 
 // Aba "Fila" do painel do balcão (Task 21): lista as OS com status
 // 'na_fila', na ordem já devolvida por GET /api/fila (vw_fila ordena por
 // score DESC, criado_em ASC — não reordenamos no cliente). Cada linha é
 // expansível (LinhaOsExpandivel) para mostrar o breakdown do score.
-export function AbaFila({ osRecemCriadaId }: AbaFilaProps) {
+//
+// Destaque da OS recém-criada: o id vem do query param `?destaque=<id>`
+// (o link "Ver na fila →" do FormularioNovaOs aponta para cá). Só a linha
+// com esse id recebe o destaque visual. Usa useSearchParams, por isso a
+// página `app/balcao/(painel)/fila/page.tsx` envolve esta aba em <Suspense>.
+export function AbaFila() {
+  const searchParams = useSearchParams();
+  const osRecemCriadaId = searchParams.get("destaque");
   const { data, isLoading, isError } = useFila();
 
   if (isLoading) {

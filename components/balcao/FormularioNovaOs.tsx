@@ -3,6 +3,7 @@
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
+import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import type { z } from "zod";
 import { osCreateSchema } from "@/lib/schemas";
@@ -34,22 +35,18 @@ type NovaOsFormData = z.input<typeof osCreateSchema>;
 // bloquearia o submit mesmo com o campo sendo opcional.
 //
 // Em sucesso: limpa o formulário, invalida a query key ["fila"] (para que a
-// aba Fila, construída na Task 21, puxe a nova linha) e mostra uma
-// confirmação inline simples (sem lib de toast instalada).
-//
-// `onOsCriada` (Task 21): callback opcional disparado com o `id` da OS recém
-// criada, para que `app/balcao/page.tsx` eleve esse id como estado
-// compartilhado e passe para `AbaFila`, que destaca visualmente a linha
-// nova assim que ela aparecer na fila.
-export interface FormularioNovaOsProps {
-  onOsCriada?: (id: string) => void;
-}
-
-export function FormularioNovaOs({ onOsCriada }: FormularioNovaOsProps = {}) {
+// aba Fila puxe a nova linha) e mostra uma confirmação inline com um link
+// "Ver na fila →" para `/balcao/fila?destaque=<id>`. A aba Fila lê esse
+// query param e destaca a linha da OS recém-criada — a comunicação entre
+// as duas rotas é só pela URL, sem estado elevado nem props entre elas.
+// O id guardado em `ultimaOsId` é zerado a cada nova tentativa de envio,
+// então o link nunca aponta para uma OS anterior.
+export function FormularioNovaOs() {
   const queryClient = useQueryClient();
   const { data: tipos, isLoading: carregandoTipos } = useTiposServico();
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
+  const [ultimaOsId, setUltimaOsId] = useState<string | null>(null);
 
   const {
     register,
@@ -73,6 +70,7 @@ export function FormularioNovaOs({ onOsCriada }: FormularioNovaOsProps = {}) {
   async function onSubmit(dados: NovaOsFormData) {
     setErroEnvio(null);
     setSucesso(null);
+    setUltimaOsId(null);
     try {
       const os = await apiFetch<{ id: string; placa: string }>("/api/os", {
         method: "POST",
@@ -82,7 +80,7 @@ export function FormularioNovaOs({ onOsCriada }: FormularioNovaOsProps = {}) {
       reset();
       await queryClient.invalidateQueries({ queryKey: ["fila"] });
       setSucesso(`OS criada com sucesso para a placa ${os.placa}.`);
-      onOsCriada?.(os.id);
+      setUltimaOsId(os.id);
     } catch (erro) {
       if (erro instanceof ApiError) {
         setErroEnvio(erro.message || "Não foi possível criar a OS. Tente novamente.");
@@ -227,7 +225,16 @@ export function FormularioNovaOs({ onOsCriada }: FormularioNovaOsProps = {}) {
       </div>
 
       {erroEnvio && <p className="text-sm text-destructive">{erroEnvio}</p>}
-      {sucesso && <p className="text-sm text-success">{sucesso}</p>}
+      {sucesso && (
+        <p className="text-sm text-success">
+          {sucesso}{" "}
+          {ultimaOsId && (
+            <Link href={`/balcao/fila?destaque=${ultimaOsId}`} className="font-medium underline underline-offset-2">
+              Ver na fila →
+            </Link>
+          )}
+        </p>
+      )}
 
       <Button type="submit" disabled={isSubmitting} className="self-start">
         Criar OS
