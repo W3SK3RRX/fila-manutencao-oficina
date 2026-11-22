@@ -26,4 +26,23 @@ export function register(): void {
         ".env.example. Gere um segredo novo, ex.: `openssl rand -base64 48`.",
     );
   }
+
+  // BALCAO_SENHA (correção de segurança pós-fix-wave, apontada junto com o
+  // finding de DoS do limitador de tentativas — ver
+  // app/api/auth/balcao/route.ts): o limitador de tentativas torna a força
+  // bruta cara em tempo, mas não impede alguém de simplesmente digitar
+  // "0000" (o valor de exemplo de .env.example) na primeira tentativa. Não
+  // exigimos um tamanho mínimo maior (a spec quer um PIN curto, digitado num
+  // teclado numérico na tela) — só recusamos iniciar se ainda for,
+  // literalmente, o valor de exemplo.
+  const senhaBalcao = process.env.BALCAO_SENHA ?? "";
+  const SENHA_EXEMPLO = "0000";
+
+  if (senhaBalcao === "" || senhaBalcao === SENHA_EXEMPLO) {
+    throw new Error(
+      "BALCAO_SENHA inválida para produção: não pode ficar vazia nem ser o " +
+        "valor de exemplo (0000) de .env.example. Defina uma senha real antes " +
+        "de implantar.",
+    );
+  }
 }

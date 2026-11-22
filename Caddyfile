@@ -20,5 +20,18 @@
 	# that header were ever dropped or the route refactored.)
 	reverse_proxy app:3000 {
 		flush_interval -1
+
+		# Overwrites X-Forwarded-For with the real connecting IP (Caddy's own
+		# view of the TCP peer), discarding whatever value a client sent in
+		# that header. Added for app/api/auth/balcao/route.ts's per-IP
+		# rate-limiting (revisão final de branch, I5 security follow-up):
+		# without this, Caddy's default behavior is to APPEND the real IP to
+		# any client-supplied X-Forwarded-For rather than replace it, which
+		# would still work (the app reads the last/rightmost entry, the one
+		# Caddy itself appended) but depends on that append-not-replace
+		# default holding across Caddy versions. Being explicit here removes
+		# that assumption entirely: the header always holds exactly one
+		# value, Caddy's own.
+		header_up X-Forwarded-For {http.request.remote.host}
 	}
 }

@@ -31,7 +31,7 @@ produção:
 |---|---|
 | `POSTGRES_PASSWORD` | Senha longa e aleatória, só para este banco. |
 | `JWT_SECRET` | **Obrigatório forte**: `instrumentation.ts` recusa iniciar o servidor em produção (`NODE_ENV=production`, já setado pelo `Dockerfile`) se este valor tiver menos de 32 caracteres ou for igual ao exemplo (`dev-secret-change-me`). Gere um com `openssl rand -base64 48`. |
-| `BALCAO_SENHA` | Troque o `0000` de exemplo. Mesmo sendo curta (é digitada num teclado numérico na tela, spec), a rota de login agora tem limite de tentativas (`app/api/auth/balcao/route.ts`, reaproveitando `lib/pin-lockout.ts`) — mas uma senha previsível continua sendo a primeira coisa que alguém tenta. |
+| `BALCAO_SENHA` | **Obrigatório trocar o `0000` de exemplo**: `instrumentation.ts` recusa iniciar o servidor em produção se este valor ainda for `0000` ou estiver vazio. Mesmo sendo curta (é digitada num teclado numérico na tela, spec), a rota de login agora tem limite de tentativas por IP (`app/api/auth/balcao/route.ts`, reaproveitando `lib/pin-lockout.ts`) — mas uma senha previsível continua sendo a primeira coisa que alguém tenta. |
 | `APP_URL` | `https://motomais.infinityforge.com.br` — usado para montar links/QR code absolutos (ex. `/instalar`). Deixar o fallback (`http://localhost:3000`) em produção quebra o QR code. |
 | `DOMAIN` | `motomais.infinityforge.com.br` — é isto que o Caddy usa para emitir o certificado (ver `Caddyfile`). |
 | `TZ` | Deixe `America/Fortaleza` (já é o default), a menos que a oficina real fique em outro fuso. |

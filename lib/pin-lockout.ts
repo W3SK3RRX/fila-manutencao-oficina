@@ -1,5 +1,5 @@
-// Bloqueio de tentativas de PIN: 5 falhas por mecânico dentro de uma janela
-// de 10 minutos bloqueiam a 6ª tentativa (mesmo que o PIN esteja correto)
+// Bloqueio de tentativas: 5 falhas por identidade dentro de uma janela de 10
+// minutos bloqueiam a 6ª tentativa (mesmo que a credencial esteja correta)
 // até a janela expirar.
 //
 // Limitação de protótipo, assumida conscientemente: o Map vive em memória do
@@ -7,6 +7,19 @@
 // servidor e não é compartilhado entre múltiplas instâncias/processos. As
 // restrições globais do plano não exigem um store persistente/distribuído
 // neste escopo, então isso é aceitável aqui.
+//
+// Generalizado de "por mecânico" para "por identidade" (revisão final de
+// branch, I5 seguido da correção de segurança pós-fix-wave apontada pelo
+// review automatizado): originalmente só a rota de PIN do mecânico usava
+// este módulo, uma identidade por `mecanicoId`. A rota de login do balcão
+// (app/api/auth/balcao/route.ts) também passou a usar este módulo — mas com
+// uma identidade por IP do cliente, nunca uma identidade constante
+// compartilhada por todo mundo: uma identidade global bloquearia (mesmo que
+// só sob um teto mais alto) o balcão de verdade por causa de tentativas
+// vindas de qualquer outro IP, trocando um DoS fácil (um único atacante) por
+// um DoS só um pouco mais caro (um atacante distribuído) — mesma classe de
+// problema, não uma correção. Cada identidade (mecanicoId, ou IP do
+// cliente) tem seu próprio bucket, isolado dos demais.
 
 import { randomUUID } from "node:crypto";
 
@@ -18,10 +31,10 @@ interface Reserva {
   id: string;
 }
 
-const tentativasPorMecanico = new Map<string, Reserva[]>();
+const tentativasPorIdentidade = new Map<string, Reserva[]>();
 
-function tentativasNaJanela(mecanicoId: string, agora: number): Reserva[] {
-  const historico = tentativasPorMecanico.get(mecanicoId) ?? [];
+function tentativasNaJanela(identidade: string, agora: number): Reserva[] {
+  const historico = tentativasPorIdentidade.get(identidade) ?? [];
   return historico.filter((reserva) => agora - reserva.quando < JANELA_MS);
 }
 
@@ -32,45 +45,46 @@ function tentativasNaJanela(mecanicoId: string, agora: number): Reserva[] {
 // de requisições concorrentes poderia passar todas pela checagem antes de
 // qualquer uma registrar uma falha. Retorna o id da reserva feita (string) se
 // a tentativa foi reservada (não estava bloqueado); `null` se já estava
-// bloqueado (e, nesse caso, nada é registrado). Em caso de sucesso do PIN, o
-// caller deve desfazer a reserva passando esse id para `desfazerTentativa`.
+// bloqueado (e, nesse caso, nada é registrado). Em caso de sucesso da
+// credencial, o caller deve desfazer a reserva passando esse id para
+// `desfazerTentativa`.
 //
 // O id é gerado com `randomUUID()` em vez de reusar o timestamp como
 // identidade: sob concorrência real, duas reservas podem cair no mesmo
 // milissegundo (`Date.now()` colide), e identificar a reserva pela posição
 // que ela ocupa no array (ex.: "a última") quebra assim que duas requisições
-// para o mesmo mecânico se intercalam — ver `desfazerTentativa`.
-export function reservarTentativa(mecanicoId: string): string | null {
+// para a mesma identidade se intercalam — ver `desfazerTentativa`.
+export function reservarTentativa(identidade: string): string | null {
   const agora = Date.now();
-  const historico = tentativasNaJanela(mecanicoId, agora);
+  const historico = tentativasNaJanela(identidade, agora);
   if (historico.length >= LIMITE_TENTATIVAS) {
-    tentativasPorMecanico.set(mecanicoId, historico);
+    tentativasPorIdentidade.set(identidade, historico);
     return null;
   }
   const reserva: Reserva = { quando: agora, id: randomUUID() };
   historico.push(reserva);
-  tentativasPorMecanico.set(mecanicoId, historico);
+  tentativasPorIdentidade.set(identidade, historico);
   return reserva.id;
 }
 
 // Desfaz a reserva identificada por `idDaReserva` (retornado por
-// `reservarTentativa`) para este mecânico. Usado quando a tentativa
-// reservada acaba se revelando bem sucedida (PIN correto), para não contar
-// um login válido como falha.
+// `reservarTentativa`) para esta identidade. Usado quando a tentativa
+// reservada acaba se revelando bem sucedida (credencial correta), para não
+// contar um login válido como falha.
 //
 // Remove a entrada pelo seu id, nunca por posição (`pop()`/"última do
-// array"): sob concorrência, duas requisições para o mesmo `mecanicoId`
-// podem se intercalar de forma que a reserva de A não seja mais a última do
-// array quando A chama `desfazerTentativa` (porque a reserva de B, uma
-// tentativa errada genuína, foi inserida depois). Remover por posição nesse
-// cenário apagaria a falha real de B (sub-contando o bloqueio) e deixaria a
-// reserva de A presa no array para sempre (contando como falha fantasma e
-// podendo bloquear um mecânico legítimo mais tarde).
-export function desfazerTentativa(mecanicoId: string, idDaReserva: string): void {
-  const historico = tentativasPorMecanico.get(mecanicoId);
+// array"): sob concorrência, duas requisições para a mesma identidade podem
+// se intercalar de forma que a reserva de A não seja mais a última do array
+// quando A chama `desfazerTentativa` (porque a reserva de B, uma tentativa
+// errada genuína, foi inserida depois). Remover por posição nesse cenário
+// apagaria a falha real de B (sub-contando o bloqueio) e deixaria a reserva
+// de A presa no array para sempre (contando como falha fantasma e podendo
+// bloquear alguém legítimo mais tarde).
+export function desfazerTentativa(identidade: string, idDaReserva: string): void {
+  const historico = tentativasPorIdentidade.get(identidade);
   if (historico && historico.length > 0) {
-    tentativasPorMecanico.set(
-      mecanicoId,
+    tentativasPorIdentidade.set(
+      identidade,
       historico.filter((reserva) => reserva.id !== idDaReserva),
     );
   }
@@ -78,12 +92,10 @@ export function desfazerTentativa(mecanicoId: string, idDaReserva: string): void
 
 // Exportado só para os testes isolarem cenários de bloqueio entre si. Os
 // testes do mecânico (tests/api/auth.test.ts) evitam colisão usando um
-// `randomUUID()` novo por teste como `mecanicoId` — mas app/api/auth/
-// balcao/route.ts (I5, revisão final de branch) usa uma única identidade
-// constante para todas as tentativas (só existe uma senha de balcão, não
-// por usuário), então os testes de bloqueio dessa rota precisam limpar essa
-// identidade entre si explicitamente. Não deve ser importado fora de
+// `randomUUID()` novo por teste como identidade — mas os testes da rota do
+// balcão usam IPs fixos (simulados via header), então precisam limpar essas
+// identidades entre si explicitamente. Não deve ser importado fora de
 // testes.
 export function __resetTentativasParaTestes(identidade: string): void {
-  tentativasPorMecanico.delete(identidade);
+  tentativasPorIdentidade.delete(identidade);
 }
