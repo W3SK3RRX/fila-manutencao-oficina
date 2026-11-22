@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fila de Manutenção (Oficina de Motos) — MotoMais
 
-## Getting Started
+Protótipo de gestão de fila de manutenção para uma oficina de motos: painel
+de balcão (`/balcao`) para registrar ordens de serviço e um PWA mobile-first
+para mecânicos (`/mecanico`) pegarem e trabalharem a fila, ordenada
+automaticamente por prioridade (tipo de serviço, tempo de espera e prazo).
 
-First, run the development server:
+Stack: Next.js (App Router) + PostgreSQL/Prisma + TanStack Query + Tailwind
+e shadcn/ui, com PWA (Serwist) e tempo real via SSE (Postgres
+`LISTEN`/`NOTIFY`). Veja o plano de implementação completo em
+`docs/superpowers/plans/2026-11-20-fila-manutencao-oficina.md`.
+
+## Desenvolvimento local
 
 ```bash
+cp .env.example .env          # ajuste os valores conforme necessário
+docker compose up -d db       # só o Postgres, para rodar o Next.js fora do Docker
+npx prisma migrate deploy     # aplica as migrações (schema + seeds fixos de tipos_servico)
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Para rodar os testes (sobem contra um segundo banco real, `motomais_test` —
+ver `.env.example`):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env .env.test             # e troque DATABASE_URL pelo valor de TEST_DATABASE_URL
+npm test
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy em produção
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Veja `infra/deploy.md` (DNS, geração de segredos, `docker compose up -d
+--build`, cadastro do primeiro mecânico) e `infra/backup.md` (backup diário
+via `pg_dump`).

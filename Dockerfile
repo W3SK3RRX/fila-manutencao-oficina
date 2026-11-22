@@ -76,6 +76,18 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma7.config.ts ./prisma7.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+# I4 (revisão final de branch): `docker compose exec app npm run
+# mecanico:criar` (scripts/mecanico-criar.ts) falhava em produção porque este
+# runner não copiava `lib/` nem `scripts/` — o standalone output do Next só
+# inclui o que o tracer (@vercel/nft) segue a partir das rotas da própria
+# app, e um script rodado via `tsx` fora do Next nunca é tracejado. Copiamos
+# `/app/lib` do estágio `builder` (não de `deps`): é o `builder` que rodou
+# `npx prisma generate` acima, então essa cópia já inclui
+# `lib/generated/prisma` (gitignored — só existe depois de gerado), que
+# `lib/db.ts` importa e que `scripts/mecanico-criar.ts` precisa
+# transitivamente.
+COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 USER nextjs
 
