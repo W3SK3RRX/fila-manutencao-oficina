@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SeletorMecanico } from "@/components/mecanico/SeletorMecanico";
+import { BotaoInstalar } from "@/components/mecanico/BotaoInstalar";
 
 // Tela de login do mecânico (Task 23): mobile-first, diferente das telas do
 // balcão (desktop-first). `proxy.ts` já exclui este sub-caminho do gate de
@@ -13,6 +14,9 @@ export default function PaginaLoginMecanico() {
         </CardHeader>
         <CardContent>
           <SeletorMecanico />
+          <div className="mt-6">
+            <BotaoInstalar />
+          </div>
         </CardContent>
       </Card>
     </div>
