@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { useResumoBalcao } from "@/hooks/useResumoBalcao";
+import { BarraStatusFila } from "@/components/balcao/BarraStatusFila";
+import { GraficoFilaPorTipo } from "@/components/balcao/GraficoFilaPorTipo";
 
 export default function PaginaHomeBalcao() {
   const { data, isLoading, isError } = useResumoBalcao();
@@ -26,13 +28,32 @@ export default function PaginaHomeBalcao() {
 
       {data && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <CartaoResumo titulo="Na fila agora" valor={data.naFila} />
-          <CartaoResumo titulo="Em execução" valor={data.emExecucao} />
-          <CartaoResumo titulo="Pausadas" valor={data.pausadas} />
-          <CartaoResumo titulo="Concluídas hoje" valor={data.concluidasHoje} />
+          <CartaoResumo titulo="Na fila agora" valor={data.naFila} corPonto="var(--chart-status-queue)" />
+          <CartaoResumo titulo="Em execução" valor={data.emExecucao} corPonto="var(--chart-status-running)" />
+          <CartaoResumo titulo="Pausadas" valor={data.pausadas} corPonto="var(--chart-status-paused)" />
+          <CartaoResumo titulo="Concluídas hoje" valor={data.concluidasHoje} corPonto="var(--chart-status-done)" />
           <CartaoResumo titulo="Espera da mais antiga" valor={data.esperaMaisAntiga} />
         </div>
       )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Status da fila</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BarraStatusFila />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Fila por tipo de serviço</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <GraficoFilaPorTipo />
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card>
@@ -62,11 +83,20 @@ export default function PaginaHomeBalcao() {
   );
 }
 
-function CartaoResumo({ titulo, valor }: { titulo: string; valor: number | string }) {
+function CartaoResumo({
+  titulo,
+  valor,
+  corPonto,
+}: {
+  titulo: string;
+  valor: number | string;
+  corPonto?: string;
+}) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          {corPonto && <span className="size-1.5 rounded-full" style={{ backgroundColor: corPonto }} />}
           {titulo}
         </span>
         <span className="font-heading text-2xl font-bold tabular-nums">{valor}</span>
