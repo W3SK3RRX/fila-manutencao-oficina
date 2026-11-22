@@ -7,6 +7,7 @@ import { FormularioNovaOs } from "@/components/balcao/FormularioNovaOs";
 import { AbaFila } from "@/components/balcao/AbaFila";
 import { AbaEmAndamento } from "@/components/balcao/AbaEmAndamento";
 import { AbaConcluidasHoje } from "@/components/balcao/AbaConcluidasHoje";
+import { CabecalhoBalcao } from "@/components/balcao/CabecalhoBalcao";
 
 // Painel do balcão (Task 20 + Task 21): layout de duas colunas. Coluna
 // esquerda = formulário de nova OS (Task 20). Coluna direita = abas
@@ -23,6 +24,7 @@ export default function PaginaBalcao() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 bg-zinc-50 p-4 dark:bg-black">
+      <CabecalhoBalcao />
       <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>

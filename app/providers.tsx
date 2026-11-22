@@ -1,8 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
 import { useEventosSSE } from "@/hooks/useEventosSSE";
+import { ApiError } from "@/lib/api-client";
+
+// I3 (revisão final de branch): nenhuma query/mutação tratava um 401 de
+// sessão expirada/ausente de forma diferente de qualquer outro erro — o
+// usuário ficava preso numa tela cheia de erros genéricos sem nenhum caminho
+// de volta para o login (agravado pelo C1: antes do fix do service worker, a
+// casca da página autenticada nem chegava a sumir do cache). Só o código
+// NAO_AUTENTICADO (ausência/expiração de sessão — ver lib/auth.ts e todo
+// route handler autenticado) dispara o redirecionamento: os códigos de
+// login recusado (SENHA_INVALIDA, PIN_INVALIDO, BLOQUEADO_TEMPORARIAMENTE)
+// também respondem 401, mas são erros que os próprios formulários de login
+// já tratam inline — redirecionar nesses casos criaria um loop (o próprio
+// POST de login "falhando" dispararia uma navegação para a página de login
+// em que o usuário já está).
+function aoErroDeQuery(erro: unknown): void {
+  if (typeof window === "undefined") return;
+  if (!(erro instanceof ApiError) || erro.codigo !== "NAO_AUTENTICADO") return;
+
+  const destino = window.location.pathname.startsWith("/mecanico")
+    ? "/mecanico/login"
+    : "/balcao/login";
+
+  if (window.location.pathname === destino) return;
+  window.location.href = destino;
+}
 
 // Monta a assinatura SSE (Task 31) uma única vez por sessão do navegador.
 // Precisa ser um componente filho de <QueryClientProvider>, não uma chamada
@@ -24,7 +49,13 @@ function MontadorEventosSSE() {
 // pela doc do TanStack Query para App Router, evitando recriar o client a
 // cada render).
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        queryCache: new QueryCache({ onError: aoErroDeQuery }),
+        mutationCache: new MutationCache({ onError: aoErroDeQuery }),
+      }),
+  );
 
   return (
     <QueryClientProvider client={queryClient}>

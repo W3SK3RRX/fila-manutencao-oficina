@@ -282,6 +282,9 @@ describe("GET /api/mecanico/atual", () => {
     expect(corpo.emExecucao).toMatchObject({ id: emExecucao.id });
     const idsPausadas = corpo.pausadas.map((os: { id: string }) => os.id);
     expect(idsPausadas.sort()).toEqual([pausada1.id, pausada2.id].sort());
+    // I3 (revisão final de branch): nome do mecânico logado, para o
+    // cabeçalho da tela do mecânico.
+    expect(corpo.mecanico).toMatchObject({ nome: mecanico.nome });
   });
 
   it("sessão de mecânico sem OS em_execucao: emExecucao é null", async () => {
@@ -295,5 +298,6 @@ describe("GET /api/mecanico/atual", () => {
     expect(response.status).toBe(200);
     expect(corpo.emExecucao).toBeNull();
     expect(corpo.pausadas).toEqual([]);
+    expect(corpo.mecanico).toMatchObject({ nome: mecanico.nome });
   });
 });

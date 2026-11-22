@@ -20,6 +20,10 @@ export interface OsMecanico {
 export interface MinhasOsResposta {
   emExecucao: OsMecanico | null;
   pausadas: OsMecanico[];
+  // Adicionado em app/api/mecanico/atual/route.ts (I3, revisão final de
+  // branch) para alimentar o cabeçalho da tela do mecânico (nome +
+  // indicador de conexão, conforme spec) sem precisar de uma rota própria.
+  mecanico: { nome: string } | null;
 }
 
 // Polling de 60s como rede de segurança (Task 31): a freshness no dia a dia

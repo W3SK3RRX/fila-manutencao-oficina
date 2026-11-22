@@ -3,7 +3,7 @@
 import { CardPrincipal } from "@/components/mecanico/CardPrincipal";
 import { SecaoMinhasPausadas } from "@/components/mecanico/SecaoMinhasPausadas";
 import { AbaFilaMecanico } from "@/components/mecanico/AbaFilaMecanico";
-import { IndicadorConexao } from "@/components/mecanico/IndicadorConexao";
+import { CabecalhoMecanico } from "@/components/mecanico/CabecalhoMecanico";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Tela principal do mecânico (Task 25), autenticada: `proxy.ts` já exige
@@ -16,18 +16,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // px-4 py-8).
 //
 // Task 27 introduz as abas "Principal"/"Fila" (mesmo componente `Tabs` do
-// balcão, ver app/balcao/page.tsx) e `IndicadorConexao` no cabeçalho, fora
-// das abas, para ficar visível independente de qual aba está ativa. A aba
-// "Principal" contém o conteúdo inteiro de antes desta task
-// (CardPrincipal + SecaoMinhasPausadas, inalterados); a aba "Fila" é somente
-// leitura (AbaFilaMecanico), sem nenhuma ação.
+// balcão, ver app/balcao/page.tsx) e um cabeçalho fora das abas, para ficar
+// visível independente de qual aba está ativa. A aba "Principal" contém o
+// conteúdo inteiro de antes desta task (CardPrincipal + SecaoMinhasPausadas,
+// inalterados); a aba "Fila" é somente leitura (AbaFilaMecanico), sem
+// nenhuma ação.
+//
+// I3 (revisão final de branch): `IndicadorConexao` sozinho virou
+// `CabecalhoMecanico` (nome do mecânico + indicador + "Sair"), para atender
+// a spec ("Topo: nome do mecânico e indicador de conexão").
 export default function PaginaMecanico() {
   return (
     <div className="flex flex-1 items-start justify-center bg-zinc-50 px-4 py-8 dark:bg-black">
       <div className="flex w-full max-w-sm flex-col gap-4">
-        <div className="flex justify-end">
-          <IndicadorConexao />
-        </div>
+        <CabecalhoMecanico />
 
         <Tabs defaultValue="principal">
           <TabsList>

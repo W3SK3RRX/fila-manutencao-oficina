@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const [emExecucao, pausadas] = await Promise.all([
+  const [emExecucao, pausadas, mecanico] = await Promise.all([
     prisma.ordemServico.findFirst({
       where: { mecanicoId: sessao.mecanicoId, status: "em_execucao" },
       include: { tipoServico: { select: { nome: true } } },
@@ -44,7 +44,18 @@ export async function GET(request: NextRequest) {
       orderBy: { criadoEm: "asc" },
       include: { tipoServico: { select: { nome: true } } },
     }),
+    // I3 (revisão final de branch): nenhuma tela exibia o nome do mecânico
+    // logado ("Topo: nome do mecânico e indicador de conexão", spec). Esta
+    // rota já é a única consultada pela tela principal do mecânico
+    // (CardPrincipal/SecaoMinhasPausadas via useMinhasOs), então expor o
+    // nome aqui evita criar uma rota nova só para isso — mesmo padrão já
+    // usado para `tipoServico` (Task 25): join simples incluído na resposta
+    // existente em vez de um round-trip extra do cliente.
+    prisma.mecanico.findUnique({
+      where: { id: sessao.mecanicoId },
+      select: { nome: true },
+    }),
   ]);
 
-  return NextResponse.json({ emExecucao, pausadas });
+  return NextResponse.json({ emExecucao, pausadas, mecanico });
 }

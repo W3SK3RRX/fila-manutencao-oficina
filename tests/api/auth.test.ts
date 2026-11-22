@@ -1,8 +1,14 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { NOME_COOKIE_SESSAO } from "@/lib/auth";
+import { __resetTentativasParaTestes } from "@/lib/pin-lockout";
+
+// Mesma identidade constante usada internamente por
+// app/api/auth/balcao/route.ts (I5, revisão final de branch) — precisa bater
+// exatamente para o reset de teste (__resetTentativasParaTestes) ter efeito.
+const IDENTIDADE_BALCAO = "balcao";
 
 // Padrão de teste para route handlers do App Router: importar a função
 // exportada (POST/GET) diretamente e invocá-la com um Request/NextRequest de
@@ -31,6 +37,10 @@ function getSetCookie(response: Response): string[] {
 const SENHA_BALCAO_CORRETA = process.env.BALCAO_SENHA!;
 
 describe("POST /api/auth/balcao", () => {
+  beforeEach(() => {
+    __resetTentativasParaTestes(IDENTIDADE_BALCAO);
+  });
+
   it("senha correta: retorna 200 e grava cookie de sessão", async () => {
     const { POST } = await import("@/app/api/auth/balcao/route");
     const request = new Request("http://localhost/api/auth/balcao", {
@@ -62,6 +72,39 @@ describe("POST /api/auth/balcao", () => {
     expect(corpo).toMatchObject({ codigo: "SENHA_INVALIDA" });
     expect(corpo.erro).toBeTruthy();
     expect(getSetCookie(response)).toHaveLength(0);
+  });
+
+  // I5 (revisão final de branch): diferente da rota de PIN do mecânico, esta
+  // rota não tinha nenhum limite de tentativas — uma senha curta exposta num
+  // domínio público podia ser força-bruteada. Mesma garantia de
+  // tests/lib/pin-lockout.test.ts e do bloco "bloqueio" de
+  // POST /api/auth/mecanico abaixo, mas para a identidade constante do
+  // balcão.
+  it("bloqueio: a 6ª tentativa errada na janela de 10min retorna 429, mesmo com a senha correta", async () => {
+    const { POST } = await import("@/app/api/auth/balcao/route");
+    const tentar = async (senha: string) => {
+      const request = new Request("http://localhost/api/auth/balcao", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ senha }),
+      });
+      return POST(request as never);
+    };
+
+    for (let i = 0; i < 5; i++) {
+      const resposta = await tentar("senha-errada-com-certeza");
+      expect(resposta.status).toBe(401);
+      const corpo = await resposta.json();
+      expect(corpo.codigo).toBe("SENHA_INVALIDA");
+    }
+
+    const sexta = await tentar(SENHA_BALCAO_CORRETA);
+    const corpoSexta = await sexta.json();
+
+    expect(sexta.status).toBe(429);
+    expect(corpoSexta).toMatchObject({ codigo: "BLOQUEADO_TEMPORARIAMENTE" });
+    expect(corpoSexta.erro).toBeTruthy();
+    expect(getSetCookie(sexta)).toHaveLength(0);
   });
 });
 

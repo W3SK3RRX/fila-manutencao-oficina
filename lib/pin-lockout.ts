@@ -75,3 +75,15 @@ export function desfazerTentativa(mecanicoId: string, idDaReserva: string): void
     );
   }
 }
+
+// Exportado só para os testes isolarem cenários de bloqueio entre si. Os
+// testes do mecânico (tests/api/auth.test.ts) evitam colisão usando um
+// `randomUUID()` novo por teste como `mecanicoId` — mas app/api/auth/
+// balcao/route.ts (I5, revisão final de branch) usa uma única identidade
+// constante para todas as tentativas (só existe uma senha de balcão, não
+// por usuário), então os testes de bloqueio dessa rota precisam limpar essa
+// identidade entre si explicitamente. Não deve ser importado fora de
+// testes.
+export function __resetTentativasParaTestes(identidade: string): void {
+  tentativasPorMecanico.delete(identidade);
+}
