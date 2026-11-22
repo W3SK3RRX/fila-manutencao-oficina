@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { NOME_COOKIE_SESSAO } from "@/lib/auth";
-import { __resetTentativasParaTestes } from "@/lib/pin-lockout";
+import { __resetTentativasParaTestes, __tamanhoMapaParaTestes } from "@/lib/pin-lockout";
 
 // Mesma identidade usada internamente por app/api/auth/balcao/route.ts (I5,
 // revisão final de branch, com a correção de segurança pós-fix-wave de
@@ -324,6 +324,44 @@ describe("POST /api/auth/mecanico", () => {
     expect(corpo).toMatchObject({ codigo: "PIN_INVALIDO" });
     expect(corpo.erro).toBeTruthy();
     expect(getSetCookie(response)).toHaveLength(0);
+  });
+
+  // CORREÇÃO DE SEGURANÇA (I5, rodada final — apontada por review
+  // automatizado): a versão anterior chamava `reservarTentativa(mecanicoId)`
+  // usando o valor CRU do corpo da requisição, ANTES de confirmar que esse
+  // id correspondia a um mecânico real e ativo — `loginMecanicoSchema` só
+  // valida o FORMATO (`z.string().uuid()`), nunca a existência. Isso
+  // deixava qualquer UUID sintaticamente válido (grátis e trivial de gerar
+  // aos milhares) criar uma identidade nova no Map compartilhado de
+  // lib/pin-lockout.ts, pressionando o teto rígido daquele módulo e — na
+  // prática — negando serviço a mecânicos de verdade e ao balcão (que
+  // compartilha o mesmo Map). Este teste prova que a busca do mecânico
+  // agora roda ANTES de `reservarTentativa`: nenhum id não confirmado
+  // chega perto do limitador — o Map não cresce nem um pouco.
+  it("não cria entrada no limitador de tentativas para um mecanicoId que não existe", async () => {
+    const { POST } = await import("@/app/api/auth/mecanico/route");
+
+    const tamanhoAntes = __tamanhoMapaParaTestes();
+
+    for (let i = 0; i < 10; i++) {
+      const request = new Request("http://localhost/api/auth/mecanico", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mecanicoId: randomUUID(), pin: "0000" }),
+      });
+
+      const response = await POST(request as never);
+      const corpo = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(corpo.codigo).toBe("PIN_INVALIDO");
+    }
+
+    // 10 ids diferentes, todos inexistentes: se `reservarTentativa` fosse
+    // chamada para qualquer um deles, o Map teria crescido em até 10
+    // entradas novas. Em vez disso, o tamanho do Map continua EXATAMENTE
+    // o mesmo de antes — nenhuma entrada foi criada.
+    expect(__tamanhoMapaParaTestes()).toBe(tamanhoAntes);
   });
 
   it("bloqueio concorrente: uma rajada de tentativas erradas simultâneas bloqueia mesmo o PIN correto em seguida", async () => {
