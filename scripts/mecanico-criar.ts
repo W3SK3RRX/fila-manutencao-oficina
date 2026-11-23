@@ -1,8 +1,8 @@
 import "dotenv/config";
-import bcrypt from "bcryptjs";
 import { createInterface, type Interface } from "node:readline";
 
 import { prisma } from "../lib/db";
+import { criarMecanico } from "../lib/mecanico-service";
 
 // Cadastro de mecânicos (spec: "apenas via seed ou script"). Uso:
 //   npm run mecanico:criar
@@ -67,8 +67,7 @@ async function main() {
       if (!PIN_REGEX.test(pin)) console.log("O PIN deve ter exatamente 4 dígitos numéricos.");
     }
 
-    const pinHash = await bcrypt.hash(pin, 10);
-    await prisma.mecanico.create({ data: { nome, pinHash } });
+    await criarMecanico({ nome, pin });
 
     console.log(`Mecânico ${nome} criado com sucesso.`);
   } finally {
