@@ -39,6 +39,7 @@ export function CabecalhoBalcao() {
         <LinkNav href="/balcao" label="Home" />
         <LinkNav href="/balcao/abrir" label="Abrir OS" />
         <LinkNav href="/balcao/fila" label="Fila de OS" />
+        <LinkNav href="/balcao/mecanicos" label="Mecânicos" />
       </nav>
       <Button type="button" variant="outline" size="sm" onClick={aoSair}>
         Sair
