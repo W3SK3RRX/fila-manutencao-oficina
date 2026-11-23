@@ -95,6 +95,7 @@ export function CardPrincipal() {
   async function aoConfirmarConcluir() {
     await apiFetch(`/api/os/${osId}/concluir`, { method: "POST" });
     await queryClient.invalidateQueries({ queryKey: ["mecanico-atual"] });
+    await queryClient.invalidateQueries({ queryKey: ["mecanico-realizadas"] });
   }
 
   return (

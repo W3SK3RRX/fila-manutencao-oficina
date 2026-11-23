@@ -3,6 +3,7 @@
 import { CardPrincipal } from "@/components/mecanico/CardPrincipal";
 import { SecaoMinhasPausadas } from "@/components/mecanico/SecaoMinhasPausadas";
 import { AbaFilaMecanico } from "@/components/mecanico/AbaFilaMecanico";
+import { AbaRealizadasMecanico } from "@/components/mecanico/AbaRealizadasMecanico";
 import { CabecalhoMecanico } from "@/components/mecanico/CabecalhoMecanico";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -35,6 +36,7 @@ export default function PaginaMecanico() {
           <TabsList>
             <TabsTrigger value="principal">Principal</TabsTrigger>
             <TabsTrigger value="fila">Fila</TabsTrigger>
+            <TabsTrigger value="realizadas">Realizadas</TabsTrigger>
           </TabsList>
           <TabsContent value="principal">
             <div className="flex flex-col gap-4">
@@ -44,6 +46,9 @@ export default function PaginaMecanico() {
           </TabsContent>
           <TabsContent value="fila">
             <AbaFilaMecanico />
+          </TabsContent>
+          <TabsContent value="realizadas">
+            <AbaRealizadasMecanico />
           </TabsContent>
         </Tabs>
       </div>
