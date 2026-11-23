@@ -3,7 +3,7 @@ import { FormularioNovaOs } from "@/components/balcao/FormularioNovaOs";
 
 export default function PaginaAbrirOs() {
   return (
-    <Card className="max-w-xl">
+    <Card className="mx-auto w-full max-w-xl">
       <CardHeader>
         <CardTitle>Abrir OS</CardTitle>
       </CardHeader>
