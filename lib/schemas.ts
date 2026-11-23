@@ -48,3 +48,19 @@ export const loginMecanicoSchema = z.object({
     .length(4, "PIN deve ter 4 dígitos")
     .regex(/^\d+$/, "PIN deve conter apenas dígitos"),
 });
+
+export const comentarioSchema = z.object({
+  texto: z
+    .string()
+    .trim()
+    .min(1, "Comentário não pode ficar vazio")
+    .max(1000, "Comentário muito longo (máximo 1000 caracteres)"),
+});
+
+export const mecanicoCreateSchema = z.object({
+  nome: z.string().min(1, "Nome é obrigatório"),
+  pin: z
+    .string()
+    .length(4, "PIN deve ter 4 dígitos")
+    .regex(/^\d+$/, "PIN deve conter apenas dígitos"),
+});

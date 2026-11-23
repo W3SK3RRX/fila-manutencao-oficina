@@ -5,6 +5,8 @@ import {
   pausarSchema,
   loginBalcaoSchema,
   loginMecanicoSchema,
+  comentarioSchema,
+  mecanicoCreateSchema,
 } from "@/lib/schemas";
 
 const osValida = {
@@ -68,5 +70,35 @@ describe("loginMecanicoSchema", () => {
     expect(loginMecanicoSchema.safeParse({ mecanicoId, pin: "123" }).success).toBe(false);
     expect(loginMecanicoSchema.safeParse({ mecanicoId, pin: "12345" }).success).toBe(false);
     expect(loginMecanicoSchema.safeParse({ mecanicoId, pin: "12a4" }).success).toBe(false);
+  });
+});
+
+describe("comentarioSchema", () => {
+  it("rejeita texto vazio ou só espaços", () => {
+    expect(comentarioSchema.safeParse({ texto: "" }).success).toBe(false);
+    expect(comentarioSchema.safeParse({ texto: "   " }).success).toBe(false);
+  });
+
+  it("rejeita texto maior que 1000 caracteres", () => {
+    expect(comentarioSchema.safeParse({ texto: "a".repeat(1001) }).success).toBe(false);
+  });
+
+  it("aceita texto válido", () => {
+    expect(comentarioSchema.safeParse({ texto: "Aguardando peça X" }).success).toBe(true);
+  });
+});
+
+describe("mecanicoCreateSchema", () => {
+  it("rejeita nome vazio", () => {
+    expect(mecanicoCreateSchema.safeParse({ nome: "", pin: "1234" }).success).toBe(false);
+  });
+
+  it("rejeita PIN que não seja 4 dígitos numéricos", () => {
+    expect(mecanicoCreateSchema.safeParse({ nome: "Fulano", pin: "123" }).success).toBe(false);
+    expect(mecanicoCreateSchema.safeParse({ nome: "Fulano", pin: "abcd" }).success).toBe(false);
+  });
+
+  it("aceita nome e PIN válidos", () => {
+    expect(mecanicoCreateSchema.safeParse({ nome: "Fulano", pin: "1234" }).success).toBe(true);
   });
 });
