@@ -68,6 +68,7 @@ model OrdemServico {
   tipoServico TipoServico @relation(fields: [tipoServicoId], references: [id])
   mecanico    Mecanico?   @relation(fields: [mecanicoId], references: [id])
   osEventos   OsEvento[]
+  osComentarios OsComentario[]
 
   @@index([status])
   @@map("ordens_servico")
@@ -87,4 +88,18 @@ model OsEvento {
   mecanico     Mecanico?    @relation(fields: [mecanicoId], references: [id])
 
   @@map("os_eventos")
+}
+
+model OsComentario {
+  id        String   @id @default(uuid()) @db.Uuid
+  osId      String   @map("os_id") @db.Uuid
+  autorTipo String   @map("autor_tipo")
+  autorNome String?  @map("autor_nome")
+  texto     String
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz
+
+  ordemServico OrdemServico @relation(fields: [osId], references: [id])
+
+  @@index([osId])
+  @@map("os_comentarios")
 }
