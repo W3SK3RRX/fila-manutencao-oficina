@@ -11,6 +11,7 @@ import { formatarTempoEspera } from "@/lib/format";
 import { BotaoPegarProximo } from "@/components/mecanico/BotaoPegarProximo";
 import { DialogoPausar } from "@/components/mecanico/DialogoPausar";
 import { DialogoConfirmacao } from "@/components/mecanico/DialogoConfirmacao";
+import { ComentariosOs } from "@/components/os/ComentariosOs";
 
 // Card principal da tela do mecânico (app/mecanico/page.tsx, Task 25):
 // - Se useMinhasOs() tiver uma OS `em_execucao` (no máximo uma, por causa da
@@ -142,6 +143,8 @@ export function CardPrincipal() {
             Concluir
           </Button>
         </div>
+
+        <ComentariosOs osId={osId} podeComentar={true} />
       </CardContent>
 
       <DialogoPausar osId={osId} open={pausarAberto} onOpenChange={setPausarAberto} />
