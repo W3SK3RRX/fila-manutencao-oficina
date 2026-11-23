@@ -93,6 +93,16 @@ describe("mecanicoCreateSchema", () => {
     expect(mecanicoCreateSchema.safeParse({ nome: "", pin: "1234" }).success).toBe(false);
   });
 
+  it("rejeita nome só com espaços", () => {
+    expect(mecanicoCreateSchema.safeParse({ nome: "   ", pin: "1234" }).success).toBe(false);
+  });
+
+  it("remove espaços nas pontas do nome", () => {
+    const resultado = mecanicoCreateSchema.safeParse({ nome: "  Fulano  ", pin: "1234" });
+    expect(resultado.success).toBe(true);
+    expect(resultado.success && resultado.data.nome).toBe("Fulano");
+  });
+
   it("rejeita PIN que não seja 4 dígitos numéricos", () => {
     expect(mecanicoCreateSchema.safeParse({ nome: "Fulano", pin: "123" }).success).toBe(false);
     expect(mecanicoCreateSchema.safeParse({ nome: "Fulano", pin: "abcd" }).success).toBe(false);

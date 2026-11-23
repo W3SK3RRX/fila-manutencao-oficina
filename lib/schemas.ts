@@ -58,7 +58,7 @@ export const comentarioSchema = z.object({
 });
 
 export const mecanicoCreateSchema = z.object({
-  nome: z.string().min(1, "Nome é obrigatório"),
+  nome: z.string().trim().min(1, "Nome é obrigatório").max(100, "Nome muito longo"),
   pin: z
     .string()
     .length(4, "PIN deve ter 4 dígitos")

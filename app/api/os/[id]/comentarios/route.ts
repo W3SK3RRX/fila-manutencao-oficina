@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { z } from "zod";
 import { NOME_COOKIE_SESSAO, verificarSessao } from "@/lib/auth";
 import { comentarioSchema } from "@/lib/schemas";
 import { prisma } from "@/lib/db";
+
+function osNaoEncontrada() {
+  return NextResponse.json(
+    { erro: "OS não encontrada", codigo: "OS_NAO_ENCONTRADA" },
+    { status: 404 },
+  );
+}
 
 export async function GET(
   request: NextRequest,
@@ -20,16 +28,17 @@ export async function GET(
 
   const { id } = await params;
 
+  if (!z.string().uuid().safeParse(id).success) {
+    return osNaoEncontrada();
+  }
+
   const os = await prisma.ordemServico.findUnique({
     where: { id },
     select: { mecanicoId: true },
   });
 
   if (!os) {
-    return NextResponse.json(
-      { erro: "OS não encontrada", codigo: "OS_NAO_ENCONTRADA" },
-      { status: 404 },
-    );
+    return osNaoEncontrada();
   }
 
   if (sessao.perfil === "mecanico" && os.mecanicoId !== sessao.mecanicoId) {
@@ -80,16 +89,17 @@ export async function POST(
 
   const { id } = await params;
 
+  if (!z.string().uuid().safeParse(id).success) {
+    return osNaoEncontrada();
+  }
+
   const os = await prisma.ordemServico.findUnique({
     where: { id },
     select: { mecanicoId: true },
   });
 
   if (!os) {
-    return NextResponse.json(
-      { erro: "OS não encontrada", codigo: "OS_NAO_ENCONTRADA" },
-      { status: 404 },
-    );
+    return osNaoEncontrada();
   }
 
   if (os.mecanicoId !== sessao.mecanicoId) {

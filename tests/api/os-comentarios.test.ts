@@ -126,6 +126,16 @@ describe("GET /api/os/[id]/comentarios", () => {
     const response = await GET(buildRequest(`/api/os/${os.id}/comentarios`, { cookieValue: token }), { params: Promise.resolve({ id: os.id }) });
     expect(response.status).toBe(200);
   });
+
+  it("id malformado (não UUID): retorna 404, não erro 500", async () => {
+    const { GET } = await import("@/app/api/os/[id]/comentarios/route");
+    const token = await assinarSessaoBalcao();
+    const response = await GET(
+      buildRequest("/api/os/nao-e-uuid/comentarios", { cookieValue: token }),
+      { params: Promise.resolve({ id: "nao-e-uuid" }) },
+    );
+    expect(response.status).toBe(404);
+  });
 });
 
 describe("POST /api/os/[id]/comentarios", () => {
@@ -192,5 +202,15 @@ describe("POST /api/os/[id]/comentarios", () => {
 
     const count = await prisma.osComentario.count({ where: { osId: os.id } });
     expect(count).toBe(0);
+  });
+
+  it("id malformado (não UUID): retorna 404, não erro 500", async () => {
+    const { POST } = await import("@/app/api/os/[id]/comentarios/route");
+    const token = await assinarSessaoMecanico(randomUUID());
+    const response = await POST(
+      buildRequest("/api/os/nao-e-uuid/comentarios", { method: "POST", cookieValue: token, body: { texto: "oi" } }),
+      { params: Promise.resolve({ id: "nao-e-uuid" }) },
+    );
+    expect(response.status).toBe(404);
   });
 });
