@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
 
+// Sempre redireciona (nunca renderiza um shell estático), então opta fora da
+// validação `instant` do Cache Components — ver
+// node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/02-route-segment-config/instant.md
+export const instant = false;
+
 // I6 (revisão final de branch): `/` ainda era o boilerplate do
 // create-next-app ("Deploy Now"/links da Vercel), visível no domínio de
 // produção real. O balcão é o ponto de entrada mais comum (computador fixo
