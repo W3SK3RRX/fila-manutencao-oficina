@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useOsPorStatus } from "@/hooks/useOs";
+import { useOsPorStatus, type OsLinha } from "@/hooks/useOs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DialogoCancelarOs } from "@/components/balcao/DialogoCancelarOs";
+import { ComentariosOs } from "@/components/os/ComentariosOs";
 import { apiFetch, ApiError } from "@/lib/api-client";
 
 // Aba "Em andamento" do painel do balcão (Task 21): lista OS com status
@@ -57,39 +58,69 @@ export function AbaEmAndamento() {
           </tr>
         </thead>
         <tbody>
-          {data.map((os) => {
-            const status = os.status as string;
-            const pausada = status === "pausada";
-            return (
-              <tr key={os.id} className="border-b border-border/60 text-sm">
-                <td className="px-2 py-2 tabular-nums">{os.numero as number}</td>
-                <td className="px-2 py-2 font-medium">{os.placa as string}</td>
-                <td className="px-2 py-2">{os.modeloMoto as string}</td>
-                <td className="px-2 py-2">{(os.mecanicoNome as string | null) ?? "—"}</td>
-                <td className="px-2 py-2">
-                  <Badge variant={pausada ? "warning" : "default"}>
-                    {pausada ? "Pausada" : "Em execução"}
-                  </Badge>
-                </td>
-                <td className="px-2 py-2">
-                  {pausada ? ((os.motivoPausa as string | null) ?? "—") : "—"}
-                </td>
-                <td className="px-2 py-2">
-                  {pausada ? (
-                    <div className="flex gap-2">
-                      <BotaoDevolverOs id={os.id as string} />
-                      <DialogoCancelarOs os={{ id: os.id as string, placa: os.placa as string }} />
-                    </div>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+          {data.map((os) => (
+            <LinhaEmAndamento key={os.id} os={os} />
+          ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+interface LinhaEmAndamentoProps {
+  os: OsLinha;
+}
+
+// Linha expansível da tabela "Em andamento" (Task 9): clicar na linha mostra
+// a thread de comentários da OS (ComentariosOs, somente leitura — o balcão
+// não escreve comentários, ver Global Constraints do plano), mesmo padrão de
+// expand/recolhe de LinhaOsExpandivel (aba Fila). A célula "Ações" mantém
+// `onClick={stopPropagation}` pelo mesmo motivo: sem isso, clicar em
+// Devolver/Cancelar também alternaria a linha.
+function LinhaEmAndamento({ os }: LinhaEmAndamentoProps) {
+  const [aberta, setAberta] = useState(false);
+
+  const status = os.status;
+  const pausada = status === "pausada";
+
+  return (
+    <>
+      <tr
+        onClick={() => setAberta((valor) => !valor)}
+        aria-expanded={aberta}
+        className="cursor-pointer border-b border-border/60 text-sm transition-colors hover:bg-muted/50"
+      >
+        <td className="px-2 py-2 tabular-nums">{os.numero as number}</td>
+        <td className="px-2 py-2 font-medium">{os.placa as string}</td>
+        <td className="px-2 py-2">{os.modeloMoto as string}</td>
+        <td className="px-2 py-2">{(os.mecanicoNome as string | null) ?? "—"}</td>
+        <td className="px-2 py-2">
+          <Badge variant={pausada ? "warning" : "default"}>
+            {pausada ? "Pausada" : "Em execução"}
+          </Badge>
+        </td>
+        <td className="px-2 py-2">
+          {pausada ? ((os.motivoPausa as string | null) ?? "—") : "—"}
+        </td>
+        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+          {pausada ? (
+            <div className="flex gap-2">
+              <BotaoDevolverOs id={os.id} />
+              <DialogoCancelarOs os={{ id: os.id, placa: os.placa as string }} />
+            </div>
+          ) : (
+            "—"
+          )}
+        </td>
+      </tr>
+      {aberta && (
+        <tr className="border-b border-border/60 bg-muted/30 text-sm">
+          <td colSpan={7} className="px-4 py-3">
+            <ComentariosOs osId={os.id} podeComentar={false} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
